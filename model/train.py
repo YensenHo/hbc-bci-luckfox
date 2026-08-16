@@ -120,7 +120,7 @@ def main() -> int:
 
     # ---- 模型 ----
     model = EEGNet(n_channels=8, n_classes=2, input_length=500,
-                   F1=8, D=2, F2=16, kernel_length=64, dropout=0.5)
+                   F1=8, D=2, F2=16, kernel_length=63, dropout=0.5)
     model = model.to(device)
     print(f"参数量   : {model.num_params():,}")
 
@@ -192,7 +192,7 @@ def main() -> int:
                 "epoch": best_epoch,
                 "val_acc": best_acc,
                 "model_args": dict(n_channels=8, n_classes=2, input_length=500,
-                                   F1=8, D=2, F2=16, kernel_length=64, dropout=0.5)},
+                                   F1=8, D=2, F2=16, kernel_length=63, dropout=0.5)},
                CHECKPOINT)
     print(f"\n✓ 最优模型已保存：{CHECKPOINT}（epoch {best_epoch}，val_acc={best_acc*100:.2f}%）")
 

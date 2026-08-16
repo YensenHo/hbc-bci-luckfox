@@ -66,7 +66,7 @@ def main() -> int:
     ckpt = torch.load(CHECKPOINT, map_location="cpu", weights_only=False)
     state = ckpt["state_dict"] if isinstance(ckpt, dict) and "state_dict" in ckpt else ckpt
     model = EEGNet(n_channels=8, n_classes=2, input_length=500,
-                   F1=8, D=2, F2=16, kernel_length=64, dropout=0.5)
+                   F1=8, D=2, F2=16, kernel_length=63, dropout=0.5)
     model.load_state_dict(state)
     model.eval()
     print(f"已加载权重：{CHECKPOINT}（参数量 {model.num_params():,}）")
