@@ -30,7 +30,11 @@ jobs:
           python-version: '3.10'
 
       - name: Install rknn-toolkit2
-        run: pip install rknn-toolkit2==2.3.2
+        run: |
+          pip install rknn-toolkit2==2.3.2
+          # rknn-toolkit2 2.3.2 内部用到 onnx.mapping（onnx>=1.16 已移除该 API），
+          # 需降级 onnx 到 1.14.x，否则 load_onnx 报 AttributeError
+          pip install "onnx==1.14.1"
 
       - name: Convert ONNX → RKNN (INT8, rv1106)
         run: python model/convert_rknn.py
