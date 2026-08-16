@@ -53,10 +53,11 @@ class EEGNet(nn.Module):
         self.kernel_length = kernel_length
 
         # ---- Block 1：时间卷积 + 空间 depthwise 卷积 ----
-        # 奇数核 + 对称 'same' padding（Conv2d 内置，不产生独立 Pad op）
-        # 原因：RV1106 NPU 不支持 Pad 算子，偶数核的非对称填充必须避免
-        self.conv1 = nn.Conv2d(1, F1, (1, kernel_length),
-                               padding=(0, kernel_length // 2), bias=False)
+        # 奇数核 + 手动补零（valid conv）：RV1106 NPU 的 Conv 不支持 padding，
+        # 若用 Conv2d(padding=...) 会在 ONNX→RKNN 时被拆成独立 Pad op（NPU 不支持）。
+        # 故改用 forward 里 torch.cat 手动补零 + Conv(padding=0)，数学等价。
+        self.conv1 = nn.Conv2d(1, F1, (1, kernel_length), padding=0, bias=False)
+        self.pad1_amt = kernel_length // 2
         self.bn1 = nn.BatchNorm2d(F1)
         # depthwise：每组一个 (n_channels, 1) 卷积核，把 8 个电极压成 1
         self.depthwise = nn.Conv2d(
@@ -68,10 +69,11 @@ class EEGNet(nn.Module):
         self.dropout1 = nn.Dropout(dropout)
 
         # ---- Block 2：separable 卷积（depthwise (1,15) + pointwise (1,1)）----
-        # 奇数核 15 + 对称 padding (0,7)，同样避免 Pad op
+        # 奇数核 15 + 手动补零（valid conv），同样避免 Pad op
         self.sep_depthwise = nn.Conv2d(
-            D * F1, D * F1, (1, 15), groups=D * F1, padding=(0, 7), bias=False
+            D * F1, D * F1, (1, 15), groups=D * F1, padding=0, bias=False
         )
+        self.pad2_amt = 7
         self.pointwise = nn.Conv2d(D * F1, F2, (1, 1), padding=0, bias=False)
         self.bn3 = nn.BatchNorm2d(F2)
         self.pool2 = nn.AvgPool2d((1, 8))
@@ -83,9 +85,16 @@ class EEGNet(nn.Module):
         self.fc = nn.Linear(F2 * self.temporal_out, n_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """x: (B, 1, C, T) → 输出 (B, n_classes) 未归一化 logits。"""
+        """x: (B, 1, C, T) → 输出 (B, n_classes) 未归一化 logits。
+
+        手动补零（torch.cat + new_zeros）+ valid conv，避免 ONNX 生成 Pad op
+        （RV1106 NPU 的 Conv 不支持 padding）。数学上与 'same' padding 等价。
+        """
         # Block 1
-        x = self.conv1(x)          # (B, F1, C, T)
+        B, C, H, T = x.shape
+        pad1 = x.new_zeros(B, C, H, self.pad1_amt)
+        x = torch.cat([pad1, x, pad1], dim=3)   # (B, C, H, T + 2*pad1)
+        x = self.conv1(x)          # valid conv → (B, F1, C, T)
         x = self.bn1(x)
         x = self.depthwise(x)      # (B, D*F1, 1, T)
         x = self.bn2(x)
@@ -94,7 +103,10 @@ class EEGNet(nn.Module):
         x = self.dropout1(x)
 
         # Block 2
-        x = self.sep_depthwise(x)  # (B, D*F1, 1, T//4)
+        B, C, H, T = x.shape
+        pad2 = x.new_zeros(B, C, H, self.pad2_amt)
+        x = torch.cat([pad2, x, pad2], dim=3)   # (B, C, H, T//4 + 2*pad2)
+        x = self.sep_depthwise(x)  # valid conv → (B, D*F1, 1, T//4)
         x = self.pointwise(x)      # (B, F2, 1, T//4)
         x = self.bn3(x)
         x = self.elu(x)
