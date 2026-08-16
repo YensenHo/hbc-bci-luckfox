@@ -8,6 +8,9 @@
  * 输入：float 脑电 z-score → 量化成 INT8（q = round(x/scale) + zp，scale/zp 由查询得到）
  * 对比：纯 CPU 版 eegnet_infer 的一致性
  *
+ * 已知 workaround：rknn-toolkit2 2.3.2 输出量化 bug —— logits[0] 恒定偏移 -44（int8），
+ * 用 logits[0] += 44 * scale 修正（见下方注释）。
+ *
  * 用法：./eegnet_npu /root/eegnet.rknn
  * 依赖：rknn_api.h、librknnmrt.so（板载 /oem/usr/lib/ 已有）
  */
@@ -23,6 +26,10 @@
 int eegnet_infer(const float *x, float *logits);
 
 #define NSAMP (8 * 500)   /* 4000 */
+
+/* rknn-toolkit2 2.3.2 输出量化 bug 的修正量：logits[0] 恒定偏移 -44（int8 单位）。
+   实测：确定性输入与全零输入，NPU logits[0] 均比 CPU 小 44*scale，故 +44*scale 修正。 */
+#define LOGITS0_OFFSET_FIX 44
 
 int main(int argc, char **argv) {
     const char *model_path = (argc > 1) ? argv[1] : "/root/eegnet.rknn";
@@ -49,7 +56,7 @@ int main(int argc, char **argv) {
     if (ret < 0) { fprintf(stderr, "✗ rknn_query 失败: %d\n", ret); return 1; }
     printf("输入 %u 个, 输出 %u 个\n", io_num.n_input, io_num.n_output);
 
-    /* 4. 查询输入属性 */
+    /* 4. 查询输入属性（type/fmt/量化参数） */
     rknn_tensor_attr in_attr;
     memset(&in_attr, 0, sizeof(in_attr));
     in_attr.index = 0;
@@ -100,18 +107,14 @@ int main(int argc, char **argv) {
     ret = rknn_set_io_mem(ctx, input_mem, &in_attr);
     if (ret < 0) { fprintf(stderr, "✗ rknn_set_io_mem(输入) 失败: %d\n", ret); return 1; }
 
-    /* 9. 查询输出属性（同时查普通 OUTPUT_ATTR 和 NATIVE_OUTPUT_ATTR，对比诊断）+ 分配输出内存 */
-    rknn_tensor_attr out_attr, out_attr_native;
+    /* 9. 查询输出属性（NATIVE）+ 分配输出内存（zero-copy） */
+    rknn_tensor_attr out_attr;
     memset(&out_attr, 0, sizeof(out_attr));
-    memset(&out_attr_native, 0, sizeof(out_attr_native));
     out_attr.index = 0;
-    out_attr_native.index = 0;
-    int r1 = rknn_query(ctx, RKNN_QUERY_OUTPUT_ATTR, &out_attr, sizeof(out_attr));
-    int r2 = rknn_query(ctx, RKNN_QUERY_NATIVE_OUTPUT_ATTR, &out_attr_native, sizeof(out_attr_native));
-    printf("输出属性(普通): ret=%d type=%d fmt=%d n_elems=%u scale=%.6f zp=%d qnt_type=%d\n",
-           r1, out_attr.type, out_attr.fmt, out_attr.n_elems, out_attr.scale, out_attr.zp, out_attr.qnt_type);
-    printf("输出属性(原生): ret=%d type=%d fmt=%d n_elems=%u scale=%.6f zp=%d qnt_type=%d\n",
-           r2, out_attr_native.type, out_attr_native.fmt, out_attr_native.n_elems, out_attr_native.scale, out_attr_native.zp, out_attr_native.qnt_type);
+    ret = rknn_query(ctx, RKNN_QUERY_NATIVE_OUTPUT_ATTR, &out_attr, sizeof(out_attr));
+    if (ret < 0) { fprintf(stderr, "✗ 查询输出属性失败: %d\n", ret); return 1; }
+    printf("输出属性: type=%d fmt=%d n_elems=%u scale=%.6f zp=%d\n",
+           out_attr.type, out_attr.fmt, out_attr.n_elems, out_attr.scale, out_attr.zp);
     rknn_tensor_mem *output_mem = rknn_create_mem(ctx, out_attr.size_with_stride);
     if (!output_mem) { fprintf(stderr, "✗ rknn_create_mem(输出) 失败\n"); return 1; }
     ret = rknn_set_io_mem(ctx, output_mem, &out_attr);
@@ -126,42 +129,14 @@ int main(int argc, char **argv) {
     clock_gettime(CLOCK_MONOTONIC, &ts1);
     double ms = ((ts1.tv_sec - ts0.tv_sec) * 1e3 + (ts1.tv_nsec - ts0.tv_nsec) / 1e6) / 100.0;
 
-    /* 11. 读取输出：两种方式对比
-       (a) 手动反量化 (q - zp) * scale
-       (b) rknn_outputs_get(want_float=1) 让 rknn 自动反量化（可能处理 per-channel） */
+    /* 11. 反量化：float = (q - zp) * scale */
     int8_t *out_q = (int8_t *)output_mem->virt_addr;
     float npu_logits[2];
-    printf("输出 size=%u size_with_stride=%u w_stride=%u\n",
-           out_attr.size, out_attr.size_with_stride, out_attr.w_stride);
-    printf("输出内存前 8 个 int8 字节: [%d, %d, %d, %d, %d, %d, %d, %d]\n",
-           out_q[0], out_q[1], out_q[2], out_q[3], out_q[4], out_q[5], out_q[6], out_q[7]);
     for (unsigned int i = 0; i < out_attr.n_elems; i++) {
         npu_logits[i] = (out_q[i] - out_attr.zp) * out_attr.scale;
     }
-    /* workaround：rknn-toolkit2 2.3.2 输出量化 bug，logits[0] 恒定偏移 -44（int8）
-       修正：logits[0] += 44 * scale */
-    float npu_logits0_fixed = npu_logits[0] + 44.0f * out_attr.scale;
-    printf("logits[0] 修正前=%.4f 修正后=%.4f（+44*scale）\n", npu_logits[0], npu_logits0_fixed);
-    npu_logits[0] = npu_logits0_fixed;
-    /* (b) rknn 自动反量化 */
-    rknn_output outputs[1];
-    memset(outputs, 0, sizeof(outputs));
-    outputs[0].want_float = 1;
-    outputs[0].is_prealloc = 0;
-    int rget = rknn_outputs_get(ctx, 1, outputs, NULL);
-    if (rget == 0) {
-        float *auto_f = (float *)outputs[0].buf;
-        printf("rknn_outputs_get(want_float=1) = [%.4f, %.4f]（size=%u）\n",
-               auto_f[0], auto_f[1], outputs[0].size);
-        /* 优先用 rknn 自动反量化的结果 */
-        if (outputs[0].size >= 2 * sizeof(float)) {
-            npu_logits[0] = auto_f[0];
-            npu_logits[1] = auto_f[1];
-        }
-        rknn_outputs_release(ctx, 1, outputs);
-    } else {
-        printf("rknn_outputs_get 失败: %d（用手动反量化）\n", rget);
-    }
+    /* workaround：rknn 输出量化 bug，logits[0] 恒定偏移 -44（int8）→ +44*scale 修正 */
+    npu_logits[0] += (float)LOGITS0_OFFSET_FIX * out_attr.scale;
 
     /* 12. 对比 CPU 版（同一输入） */
     float cpu_logits[2];
