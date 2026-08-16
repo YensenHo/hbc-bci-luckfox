@@ -1,0 +1,71 @@
+name: NPU Deploy (RKNN convert + cross-compile)
+
+# 一键完成 NPU 部署的两步（Mac 上做不了的事）：
+#   1. convert：Linux x86 上把 eegnet.onnx 转成 rv1106 INT8 .rknn
+#   2. compile：用 Luckfox 官方 uClibc 工具链交叉编译 NPU 推理程序
+# 触发：手动 workflow_dispatch，或 model/eegnet.onnx、calib_data 变化时自动跑
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'model/eegnet.onnx'
+      - 'model/calib_data/**'
+      - 'model/calib_data.txt'
+      - 'model/convert_rknn.py'
+      - 'board/infer_eegnet_rknn.c'
+      - 'board/eegnet_infer.c'
+      - 'board/eegnet_weights.h'
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install rknn-toolkit2
+        run: pip install rknn-toolkit2==2.3.2
+
+      - name: Convert ONNX → RKNN (INT8, rv1106)
+        run: python model/convert_rknn.py
+
+      - name: Upload eegnet.rknn
+        uses: actions/upload-artifact@v4
+        with:
+          name: eegnet-rknn
+          path: model/eegnet.rknn
+
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sparse-clone Luckfox uClibc toolchain
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/LuckfoxTECH/luckfox-pico.git /tmp/luckfox
+          cd /tmp/luckfox
+          git sparse-checkout set tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf
+
+      - name: Cross-compile NPU inference
+        run: |
+          TC=/tmp/luckfox/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf
+          export PATH="$TC/bin:$PATH"
+          arm-rockchip830-linux-uclibcgnueabihf-gcc -O2 -I board \
+            board/infer_eegnet_rknn.c board/eegnet_infer.c \
+            -L board -lrknnmrt -lm -Wl,-rpath,/oem/usr/lib \
+            -o eegnet_npu
+          file eegnet_npu
+
+      - name: Upload eegnet_npu
+        uses: actions/upload-artifact@v4
+        with:
+          name: eegnet-npu
+          path: eegnet_npu

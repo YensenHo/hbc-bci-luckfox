@@ -1,0 +1,23 @@
+# ============================================================
+# PC 端依赖（训练 EEGNet + 数据预处理 + ONNX/RKNN 转换）
+# 安装：pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+# 注意：rknn-toolkit2 只在 Linux x86 可用，Mac 请在 WSL2/云主机安装
+# ============================================================
+
+torch>=2.0
+numpy>=1.24
+mne>=1.5
+scipy>=1.10
+scikit-learn>=1.3
+moabb>=0.5          # 可选：BCIC IV 2a 一键下载（失败可回退 Graz 原始源）
+onnx>=1.14
+onnxruntime>=1.16   # 用于验证 ONNX 导出后输出一致性
+pyyaml>=6.0
+
+# ---- 以下仅在 Linux x86（WSL2/云主机）安装，用于 ONNX → RKNN ----
+# rknn-toolkit2   # pip install rknn-toolkit2（版本需匹配 Rockchip 官方，见 convert_rknn.py 注释）
+
+# ---- 板载依赖（板子上 Ubuntu 镜像自带 python3，另需）：----
+# 板子上执行：
+#   pip install numpy spidev rknnlite2   # rknnlite2 板载 NPU 推理 runtime
+# 若 Buildroot 镜像无 pip：改刷 Ubuntu 22.04 镜像（推荐），或交叉编译

@@ -1,0 +1,81 @@
+# ============================================================
+# Luckfox Pico Ultra — HBC-BCI 端侧验证 · 全局配置
+# 项目：EQS-HBC × BCI（G2 穿颅信道建模与表征），Phase 1 公开EEG + 端侧融合验证
+# 注：论文诚实框架 =「端侧 HBC×BCI 融合 + EQS 穿颅信道建模与端到端计算验证」
+#     （不称"测量"、不称"真实穿颅传输"——那需要实验室设备，属后续阶段）
+# ============================================================
+
+board:
+  name: "Luckfox Pico Ultra"
+  soc: "RV1106G3"           # Cortex-A7 @1.2GHz + RISC-V 协处理器
+  npu: "0.5 TOPS"
+  ram: "512MB"
+  storage: "8GB eMMC"       # 无 TF 卡，USB 刷机
+  host: "172.32.0.93"       # USB RNDIS 默认地址
+  ssh_user: "root"
+  ssh_password: "luckfox"
+  remote_dir: "/root"
+
+# ---- 脑电采集（ADS1299 8 通道模拟前端）----
+eeg:
+  af_channels: 8            # ADS1299 通道数
+  sample_rate: 250          # Hz（BCIC IV 2a 同款采样率，便于迁移）
+  bandpass: [0.5, 50]       # Hz，4 阶 Butterworth
+  notch: 50                 # Hz 工频陷波
+  epoch_len: 2.0            # 秒，[0.5, 2.5]s 相对 cue
+  dataset_channels: 8        # 训练用 8ch 运动区子集（FC3/FCz/FC4/C3/Cz/C4/CP3/CP4）
+
+# ---- 神经解码模型（EEGNet）----
+model:
+  arch: "EEGNet"
+  F1: 8
+  D: 2
+  F2: 16
+  kernel_length: 64         # 250Hz 下 0.25s
+  dropout: 0.5
+  n_classes: 2              # 左/右手 二分类（8ch 运动区，对齐 ADS1299）
+  input_shape: [1, 8, 500]  # (C=1, channels=8, time=500)
+  rknn_target: "rv1106"
+  quantize: "int8"
+  max_size_kb: 50           # 量化后模型上限
+  acc_target: 0.75          # 2a 二分类准确率目标（已实测 76.31%）
+
+# ---- HBC 信号生成（AD9833 DDS）----
+hbc:
+  carrier_hz: 1000000       # 1 MHz EQS 载波（BP-QBC 论文同款）
+  dds_clock_hz: 25000000    # AD9833 25MHz 晶振
+  modulation: "OOK"         # 起步用开关键控，后续升级 BP-QBC 双相
+  tdd_record_pct: 99        # TDD 时隙：99% 采集+解码，1% HBC 发射
+  tdd_tx_pct: 1
+
+# ---- SPI 外设 ----
+# ⚠️ Pico Ultra 只有 SPI0（无 SPI1）！Codex 调研确认：rv1106g-luckfox-pico-ultra.dts 只定义 &spi0。
+# SPI0 引脚：SCLK=GPIO1_PC1(49), MOSI=PC2(50), MISO=PC3(51), CS0=PC0(48)
+# 使能：luckfox-config → Advanced Options → SPI → enable（立即生效，无需重编 dtb）
+spi:
+  bus: 0                  # SPI0（不是 SPI1）
+  ads1299:
+    cs: 0
+    max_speed_hz: 2000000
+    mode: 1                # CPOL=0, CPHA=1（ADS1299 要求）
+    vref: 4.5              # V，参考电压
+    gain: 24               # 可编程增益（CHnSET）
+  ad9833:
+    cs: 1                  # 与 ADS1299 分时复用 SPI0，用 GPIO 作软件 CS
+    max_speed_hz: 1000000
+    mode: 0
+
+# ---- 部署 ----
+deploy:
+  local_root: "/Users/heyixuan/BCI/luckfox-deploy"
+  data_raw: "data/raw"      # BCIC IV 2a .mat 缓存目录（.gdf 已从服务器移除）
+  data_processed: "data/processed"
+  model_dir: "model"
+  board_dir: "board"
+
+# ---- 硬件清单（阶段 3，总预算 ¥150-200）----
+hardware:
+  afe: "ADS1299 模块 ¥60-80（8ch 24bit 脑电模拟前端）"
+  dds: "AD9833 模块 ¥12-15（HBC 载波 0.1-10MHz）"
+  electrodes: "Ag/AgCl 或干电极 ¥30"
+  jumper_wires: "杜邦线 ¥5"

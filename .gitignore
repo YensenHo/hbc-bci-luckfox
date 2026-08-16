@@ -1,0 +1,14 @@
+# 大文件 / 原始数据（不 push，GitHub Actions 只用 onnx + calib_data）
+data/raw/
+data/processed/
+data/itis/
+data/fusion_test.bin
+data/*.bin
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 系统
+.DS_Store
