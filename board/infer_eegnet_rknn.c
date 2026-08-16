@@ -130,7 +130,10 @@ int main(int argc, char **argv) {
     /* 11. 读取输出（INT8 → float 反量化） */
     int8_t *out_q = (int8_t *)output_mem->virt_addr;
     float npu_logits[2];
-    printf("输出原始 int8: [%d, %d]（前2个）\n", out_q[0], out_q[1]);
+    printf("输出 size=%u size_with_stride=%u w_stride=%u\n",
+           out_attr.size, out_attr.size_with_stride, out_attr.w_stride);
+    printf("输出内存前 8 个 int8 字节: [%d, %d, %d, %d, %d, %d, %d, %d]\n",
+           out_q[0], out_q[1], out_q[2], out_q[3], out_q[4], out_q[5], out_q[6], out_q[7]);
     for (unsigned int i = 0; i < out_attr.n_elems; i++) {
         npu_logits[i] = (out_q[i] - out_attr.zp) * out_attr.scale;
     }
