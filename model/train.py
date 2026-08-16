@@ -68,6 +68,47 @@ def _pick_device(no_cuda: bool):
     return torch.device("cpu")
 
 
+def _save_training_curve(history: list[dict], model_dir: Path) -> None:
+    """训练结束后把 loss/accuracy 曲线存成 PNG（真实训练过程的产物）。"""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        plt.rcParams["font.family"] = "sans-serif"
+        plt.rcParams["font.sans-serif"] = ["Hiragino Sans GB", "STHeiti", "Arial Unicode MS"]
+        plt.rcParams["axes.unicode_minus"] = False
+        epochs = [h["epoch"] for h in history]
+        loss = [h["train_loss"] for h in history]
+        tr_acc = [h["train_acc"] * 100 for h in history]
+        va_acc = [h["val_acc"] * 100 for h in history]
+        fig, (a1, a2) = plt.subplots(2, 1, figsize=(8, 8), dpi=150, facecolor="#1B2A4A")
+        for a in (a1, a2):
+            a.set_facecolor("#243555")
+            a.tick_params(colors="white", labelsize=11)
+            for sp in a.spines.values():
+                sp.set_color("#8FA3BF")
+            a.grid(True, color="#8FA3BF", alpha=0.25, lw=0.8)
+            a.set_xlabel("Epoch", color="white", fontsize=12)
+        a1.plot(epochs, loss, color="#00B4D8", lw=2, marker="o", ms=4, label="Train Loss")
+        a1.set_ylabel("Loss", color="white", fontsize=12)
+        a1.set_title("EEGNet 训练过程（BCIC IV 2a · 8ch 二分类）", color="white",
+                     fontsize=15, weight="bold", pad=12)
+        a1.legend(facecolor="#243555", edgecolor="#8FA3BF", labelcolor="white")
+        a2.plot(epochs, tr_acc, color="#2E86AB", lw=2, marker="o", ms=4, label="Train Acc")
+        a2.plot(epochs, va_acc, color="#E76F51", lw=2.5, marker="o", ms=5, label="Val Acc")
+        a2.axhline(max(va_acc), color="#2ECC71", lw=1.2, ls="--", alpha=0.7)
+        a2.set_ylabel("Accuracy (%)", color="white", fontsize=12)
+        a2.set_ylim(45, 90)
+        a2.legend(facecolor="#243555", edgecolor="#8FA3BF", labelcolor="white", loc="lower right")
+        fig.tight_layout(pad=2.5)
+        curve_path = model_dir / "training_curve.png"
+        fig.savefig(curve_path, facecolor="#1B2A4A", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  训练曲线已保存：{curve_path}")
+    except Exception as e:  # noqa: BLE001
+        print(f"  ⚠ 训练曲线图保存失败（不影响训练）：{e}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="训练 EEGNet（BCIC IV 2a 四分类）")
     parser.add_argument("--epochs", type=int, default=50)
@@ -183,6 +224,9 @@ def main() -> int:
             if patience_counter >= args.patience:
                 print(f"\n早停：验证集准确率连续 {args.patience} 个 epoch 未提升。")
                 break
+
+    # ---- 训练曲线图（训练过程自动保存的真实产物）----
+    _save_training_curve(history, MODEL_DIR)
 
     # ---- 保存最优模型与报告 ----
     if best_state is None:
