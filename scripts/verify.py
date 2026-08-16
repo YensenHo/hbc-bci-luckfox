@@ -116,6 +116,18 @@ for src in _c_srcs:
     if os.path.exists(out):
         os.remove(out)
 
+# ---- 7. 校准集路径格式（rknn build 按 txt 所在目录解析，路径不得带 model/ 前缀）----
+_calib_txt = os.path.join(ROOT, "model", "calib_data.txt")
+if os.path.exists(_calib_txt):
+    _lines = [l.strip() for l in open(_calib_txt, encoding="utf-8") if l.strip()]
+    _ok = bool(_lines) and all(l.startswith("calib_data/") and "model/" not in l for l in _lines)
+    check(f"calib_data.txt 相对路径({len(_lines)}行无model/前缀)", _ok,
+          f"{len(_lines)}行" if _ok else "路径含 model/ 前缀")
+_cc_src = open(os.path.join(ROOT, "model", "convert_rknn.py"), encoding="utf-8").read()
+check("convert_rknn.py np.load(MODEL_DIR/ln)", "np.load(MODEL_DIR / ln)" in _cc_src)
+_cal_src = open(os.path.join(ROOT, "model", "calibration.py"), encoding="utf-8").read()
+check("calibration.py relative_to(MODEL_DIR)", "relative_to(MODEL_DIR)" in _cal_src)
+
 
 def main() -> int:
     passed = sum(1 for _, ok, _ in results if ok)
