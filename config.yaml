@@ -13,7 +13,7 @@ board:
   storage: "8GB eMMC"       # 无 TF 卡，USB 刷机
   host: "172.32.0.93"       # USB RNDIS 默认地址
   ssh_user: "root"
-  ssh_password: "luckfox"
+  ssh_password: ""          # 开源留空；板子默认密码 luckfox，部署时自行填写
   remote_dir: "/root"
 
 # ---- 脑电采集（ADS1299 8 通道模拟前端）----
@@ -67,7 +67,7 @@ spi:
 
 # ---- 部署 ----
 deploy:
-  local_root: "/Users/heyixuan/BCI/luckfox-deploy"
+  local_root: "/path/to/luckfox-deploy"   # 项目根绝对路径（部署时填写）
   data_raw: "data/raw"      # BCIC IV 2a .mat 缓存目录（.gdf 已从服务器移除）
   data_processed: "data/processed"
   model_dir: "model"
