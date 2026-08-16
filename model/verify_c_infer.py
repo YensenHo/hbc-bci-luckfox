@@ -91,9 +91,45 @@ def main() -> int:
     print(f"预测一致率         : {n_match}/{N} ({n_match/N*100:.0f}%)")
     if max_diff < 1e-3 and n_match == N:
         print("✓ C 推理与 PyTorch 一致（BN 折叠正确）")
+        _save_consistency_figure(logits_py, logits_c, N, max_diff, MODEL_DIR)
         return 0
     print("✗ C 推理与 PyTorch 不一致，需排查移植")
     return 1
+
+
+def _save_consistency_figure(logits_py, logits_c, n, max_diff, model_dir: Path) -> None:
+    """验证时把 C vs PyTorch 的 logits 逐点对比画成散点图（真实验证产物）。"""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        plt.rcParams["font.family"] = "sans-serif"
+        plt.rcParams["font.sans-serif"] = ["Hiragino Sans GB", "STHeiti", "Arial Unicode MS"]
+        plt.rcParams["axes.unicode_minus"] = False
+        fig, ax = plt.subplots(figsize=(8, 6), dpi=150, facecolor="#1B2A4A")
+        ax.set_facecolor("#243555")
+        ax.scatter(logits_py[:, 0], logits_c[:, 0], color="#00B4D8", s=50, label="logits[0]")
+        ax.scatter(logits_py[:, 1], logits_c[:, 1], color="#E76F51", s=50, label="logits[1]")
+        lo = min(logits_py.min(), logits_c.min()) - 0.2
+        hi = max(logits_py.max(), logits_c.max()) + 0.2
+        ax.plot([lo, hi], [lo, hi], "--", color="#8FA3BF", lw=1.5, label="y=x（完全一致）")
+        ax.set_xlim(lo, hi)
+        ax.set_ylim(lo, hi)
+        ax.set_xlabel("PyTorch logits", color="white", fontsize=12)
+        ax.set_ylabel("C 推理 logits", color="white", fontsize=12)
+        ax.set_title(f"C 移植 vs PyTorch：{n} 个真实试次 logits 逐点重合（误差 {max_diff:.2e}）",
+                     color="white", fontsize=14, weight="bold", pad=12)
+        ax.tick_params(colors="white", labelsize=11)
+        for sp in ax.spines.values():
+            sp.set_color("#8FA3BF")
+        ax.legend(facecolor="#243555", edgecolor="#8FA3BF", labelcolor="white")
+        fig.tight_layout()
+        fig_path = model_dir / "verify_consistency.png"
+        fig.savefig(fig_path, facecolor="#1B2A4A", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  验证一致性图已保存：{fig_path}")
+    except Exception as e:  # noqa: BLE001
+        print(f"  ⚠ 一致性图保存失败（不影响验证）：{e}")
 
 
 if __name__ == "__main__":
