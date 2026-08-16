@@ -8,13 +8,13 @@ hbc_tx.py — AD9833 DDS 生成 EQS-HBC 载波（阶段 4，把 Luckfox 变成�
 ⚠️ 为什么不用板载 PWM：RV1106 PWM 无法稳定输出 1 MHz，AD9833 DDS（¥12）才是正解。
    AD9833 频率字：freq_word = hz * 2^28 / 25MHz（板载 25MHz 晶振）
 
-硬件接线（Luckfox 40pin GPIO）：
-    AD9833 SDATA  → SPI1_MOSI (Pin 19)
-    AD9833 SCLK   → SPI1_CLK  (Pin 23)
-    AD9833 FSYNC  → GPIO CS    (与 ADS1299 分时复用总线)
+硬件接线（Luckfox Pico Ultra，SPI0 引脚，与 ADS1299 分时复用总线）：
+    AD9833 SDATA  → SPI0_MOSI (GPIO1_PC2)
+    AD9833 SCLK   → SPI0_CLK  (GPIO1_PC1)
+    AD9833 FSYNC  → GPIO 软件 CS（与 ADS1299 分时复用 SPI0）
     AD9833 OUT    → 放大后接 HBC 电极
 
-用法（板子上，需先使能 SPI：ls /dev/spidev* 应看到 spidev1.x）：
+用法（板子上，需先使能 SPI0：ls /dev/spidev* 应看到 spidev0.x）：
     python3 /root/hbc_tx.py
 """
 import time

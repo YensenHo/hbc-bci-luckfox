@@ -28,8 +28,13 @@ int eegnet_infer(const float *x, float *logits);
 #define NSAMP (8 * 500)   /* 4000 */
 
 /* rknn-toolkit2 2.3.2 输出量化 bug 的修正量：logits[0] 恒定偏移 -44（int8 单位）。
-   实测：确定性输入与全零输入，NPU logits[0] 均比 CPU 小 44*scale，故 +44*scale 修正。 */
-#define LOGITS0_OFFSET_FIX 44
+   实测：确定性输入与全零输入，NPU logits[0] 均比 CPU 小 44*scale，故 +44*scale 修正。
+
+   ★ 2026-08-16 更新：分类头已从 Linear(Gemm) 改为 Conv2d(1x1)（见 model/eegnet.py），
+   理论上绕过 Gemm 量化 bug。重新转 .rknn 后应先验证是否还需要此 workaround：
+     - 0  = 关闭 workaround（fc→Conv2d 修复后的预期状态，先试这个）
+     - 44 = 开启 workaround（旧 Gemm 模型的兜底，若 Conv2d 仍有偏移再开） */
+#define LOGITS0_OFFSET_FIX 0
 
 int main(int argc, char **argv) {
     const char *model_path = (argc > 1) ? argv[1] : "/root/eegnet.rknn";

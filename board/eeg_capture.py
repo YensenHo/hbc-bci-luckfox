@@ -11,15 +11,15 @@ ADS1299 协议要点：
   - 命令：SDATAC(0x11) 停止连续读，RDATAC(0x10) 开始连续读，
           WREG(0x40|addr) 写寄存器，RREG(0x20|addr) 读寄存器
 
-硬件接线（Luckfox 40pin GPIO）：
-    ADS1299 SCLK  → SPI1_CLK  (Pin 23)
-    ADS1299 DIN   → SPI1_MOSI (Pin 19)
-    ADS1299 DOUT  → SPI1_MISO (Pin 21)
-    ADS1299 CS    → GPIO      (Pin 22)
-    ADS1299 DRDY  → GPIO 中断 (Pin 24)   ← 下降沿触发
+硬件接线（Luckfox Pico Ultra，SPI0 引脚，见 config.yaml spi 段）：
+    ADS1299 SCLK  → SPI0_CLK  (GPIO1_PC1)
+    ADS1299 DIN   → SPI0_MOSI (GPIO1_PC2)
+    ADS1299 DOUT  → SPI0_MISO (GPIO1_PC3)
+    ADS1299 CS    → SPI0_CS0  (GPIO1_PC0)
+    ADS1299 DRDY  → GPIO 中断 (下降沿触发)
     GND/3.3V      → 对应电源
 
-用法（板子上，需先使能 SPI1）：
+用法（板子上，需先使能 SPI0：luckfox-config → SPI → enable）：
     python3 /root/eeg_capture.py
 
 ⚠️ 本脚本依赖真实硬件，需接 ADS1299 模块后验证；DRDY 中断用 GPIO 轮询
