@@ -8,7 +8,9 @@
 #   docker build --platform linux/amd64 -t hbc-bci-npu -f docker/Dockerfile .
 # 或直接跑一键脚本：./docker/convert.sh
 
-FROM --platform=linux/amd64 ubuntu:22.04
+# 注意：x86_64 platform 由构建命令指定（docker build --platform linux/amd64），
+# 不写在 FROM 里（避免 BuildKit 常量警告）。
+FROM ubuntu:22.04
 
 # 基础工具 + Python 3.10
 RUN apt-get update && apt-get install -y --no-install-recommends \
