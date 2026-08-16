@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-parse_itis.py — 解析 IT'IS 组织参数库 V4.2，提取穿颅 5 层组织的 4-Cole-Cole 参数
+parse_itis.py — 解析 IT'IS 组织参数库 V4.2，提取多层组织的 4-Cole-Cole 参数
 
 IT'IS 数据源：DOI 10.13099/VIP21000-04-2（下载见 data/itis/Database-V4-2.zip）
 Dielectric Properties 字段（14 个，按表头顺序）：
@@ -14,7 +14,7 @@ Dielectric Properties 字段（14 个，按表头顺序）：
 4-Cole-Cole 复介电常数（Gabriel 1996）：
     ε(ω) = ε_∞ + Σ_{n=1..4} Δε_n / (1 + (jωτ_n)^(1-α_n)) + σ_i/(jωε_0)
 
-穿颅 5 层组织（对应 hbc_channel.h 的 layers）：
+多层组织（对应 hbc_channel.h 的 layers）：
     皮肤 Skin / 脂肪 Fat / 颅骨 Bone (Cortical) / 脑脊液 Cerebrospinal Fluid / 脑灰质 Brain (Grey Matter)
 
 用法
@@ -33,7 +33,7 @@ ASCII_FILE = ITIS_DIR / "Thermal_dielectric_acoustic_MR properties_database_V4.2
 
 EPS0 = 8.8541878128e-12
 
-# 穿颅 5 层组织 → IT'IS 里的确切名称
+# 多层组织 → IT'IS 里的确切名称
 TARGETS = ["Skin", "Fat", "Bone (Cortical)", "Cerebrospinal Fluid", "Brain (Grey Matter)"]
 
 # 4-Cole-Cole 各 τ 的单位（s）
@@ -98,7 +98,7 @@ def export_c_header(db: dict, out_path: Path) -> None:
     lines = [
         "/* 自动生成自 IT'IS V4.2 (DOI 10.13099/VIP21000-04-2) — 勿手改 */",
         "/* 生成命令：python3 data/parse_itis.py --export-c */",
-        "/* 穿颅 5 层组织 4-Cole-Cole 参数（Gabriel 1996 色散模型） */",
+        "/* 多层组织 4-Cole-Cole 参数（Gabriel 1996 色散模型） */",
         "",
     ]
     lines.append(f"static const ColeColeParams ITIS_LAYERS[{len(TARGETS)}] = {{")
@@ -115,7 +115,7 @@ def export_c_header(db: dict, out_path: Path) -> None:
 
 def main() -> int:
     import argparse
-    parser = argparse.ArgumentParser(description="解析 IT'IS 组织参数库，提取穿颅 5 层 Cole-Cole 参数")
+    parser = argparse.ArgumentParser(description="解析 IT'IS 组织参数库，提取多层组织 Cole-Cole 参数")
     parser.add_argument("--export-c", action="store_true",
                         help="生成 C 参数表 board/cole_cole_params.h")
     args = parser.parse_args()
@@ -133,7 +133,7 @@ def main() -> int:
         return 0
 
     print("=" * 78)
-    print("IT'IS V4.2 穿颅 5 层组织 · 4-Cole-Cole 参数（已做单位换算）")
+    print("IT'IS V4.2 多层组织 · 4-Cole-Cole 参数（已做单位换算）")
     print("=" * 78)
     for name in TARGETS:
         d = db.get(name)

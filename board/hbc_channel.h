@@ -1,7 +1,7 @@
 /*
- * hbc_channel.h — EQS-HBC 穿颅信道模型（分层 R-C 梯形网络）
+ * hbc_channel.h — EQS-HBC 体表信道模型（分层 R-C 梯形网络）
  *
- * G2 核心：电准静态人体通信(EQS-HBC)信号穿过颅骨的信道特性。
+ * 核心：电准静态人体通信(EQS-HBC)信号穿过颅骨的信道特性。
  * 参考：Maity et al. arXiv:1805.05200（EQS-HBC 集总生物物理模型）、
  *       Datta et al. arXiv:2010.15339、BP-QBC arXiv:2205.08540。
  *

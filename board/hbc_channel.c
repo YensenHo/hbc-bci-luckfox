@@ -1,5 +1,5 @@
 /*
- * hbc_channel.c — 分层 R-C 穿颅信道模型实现
+ * hbc_channel.c — 分层 R-C 体表信道模型实现
  * 见 hbc_channel.h 说明。
  */
 #include <math.h>

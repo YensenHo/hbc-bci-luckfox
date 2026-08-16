@@ -9,7 +9,7 @@
  *        ↓
  *   [3] 编码 + OOK 调制到 1MHz EQS 载波
  *        ↓
- *   [4] HBC 穿颅信道(分层 R-C 模型, 颅骨主衰减) + AWGN
+ *   [4] HBC 体表信道(分层 R-C 模型, 颅骨主衰减) + AWGN
  *        ↓
  *   [5] 包络检波解调 → 恢复比特
  *        ↓
@@ -113,7 +113,7 @@ static void ook_demodulate(const double *rx, int len, int nbits, double thresh, 
 /* ---------- 主程序 ---------- */
 int main(void) {
     clock_t t_start = clock();
-    /* 穿颅分层组织模型 (近似值, 精确值从 IT'IS DB 导出) */
+    /* 体表分层组织模型 (近似值, 精确值从 IT'IS DB 导出) */
     const double A_ELECTRODE = 1e-6;       /* 1mm² 植入电极 */
     const double C_BODY_EARTH = 150e-12;   /* 人体-大地返回路径电容 */
     TissueLayer layers[5] = {
@@ -127,11 +127,11 @@ int main(void) {
 
     printf("============================================================\n");
     printf("  HBC x BCI 闭环仿真系统 (Luckfox Pico Ultra / RV1106)\n");
-    printf("  人体通信穿颅信道 + 脑机接口解码, 板载端到端仿真\n");
+    printf("  人体通信体表信道 + 脑机接口解码, 板载端到端仿真\n");
     printf("============================================================\n\n");
 
-    /* ===== Part A: G2 穿颅信道特性 (分层 R-C 模型) ===== */
-    printf("--- [G2] 穿颅信道特性 @ 1 MHz ---\n");
+    /* ===== Part A: EQS-HBC 体表信道特性 (分层 R-C 模型) ===== */
+    printf("--- [EQS-HBC] 体表信道特性 @ 1 MHz ---\n");
     cpx ztotal = { 0, 0 };
     for (int i = 0; i < N_LAYER; i++) {
         cpx z = layer_impedance(&layers[i], FC, A_ELECTRODE);
@@ -186,7 +186,7 @@ int main(void) {
         int tx_len;
         ook_modulate(bits, BITS_PER_FRAME, tx, &tx_len);
 
-        /* [4] HBC 穿颅信道: 动态衰落(±25%) + 幅度衰减 + AWGN */
+        /* [4] HBC 体表信道: 动态衰落(±25%) + 幅度衰减 + AWGN */
         double fade = 1.0 + 0.25 * gauss();          /* 信道动态变化 (PPT P22) */
         double gain = g_with.mag * fade;
         double noise_sigma = 0.15 * gain;             /* 较高噪声 → 非零 BER */
@@ -220,7 +220,7 @@ int main(void) {
     printf("  TX 功耗估算 : %.2f uW (按 BP-QBC 0.52uW@1Mbps 缩放)\n", 0.52 * data_kbps / 1000.0);
 
     printf("\n============================================================\n");
-    printf("  结论: 穿颅 EQS-HBC 信道模型 + 脑电解码在 RV1106 单核上\n");
+    printf("  结论: 体表 EQS-HBC 信道模型 + 脑电解码在 RV1106 单核上\n");
     printf("        实时跑通, 颅骨为主衰减层 (贡献 %.1f dB)。\n",
            g_with.loss_dB - g_without.loss_dB);
     printf("  总耗时: %.1f ms (含 %d 次闭环 + 信道扫频)\n",

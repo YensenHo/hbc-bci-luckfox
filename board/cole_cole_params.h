@@ -1,6 +1,6 @@
 /* 自动生成自 IT'IS V4.2 (DOI 10.13099/VIP21000-04-2) — 勿手改 */
 /* 生成命令：python3 data/parse_itis.py --export-c */
-/* 穿颅 5 层组织 4-Cole-Cole 参数（Gabriel 1996 色散模型） */
+/* 多层组织 4-Cole-Cole 参数（Gabriel 1996 色散模型） */
 
 static const ColeColeParams ITIS_LAYERS[5] = {
     /* Skin */ { 4, {32, 1100, 0, 0}, {7.234000000e-12, 3.248100000e-08, 1.591550000e-04, 1.591500000e-02}, {0, 0.2, 0.2, 0.2}, 0.0002 },

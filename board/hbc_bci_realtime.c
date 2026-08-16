@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
     double H = g.mag, noise_sigma = 0.1 * H, thresh = 0.5 * H;
 
     printf("=== 实时流式演示：RV1106 端侧 HBC×BCI 融合（%d 窗口 × %d 轮）===\n", N, loops);
-    printf("穿颅信道 %.1f dB @1MHz | 单窗口=2s 脑电\n\n", g.loss_dB);
+    printf("体表信道 %.1f dB @1MHz | 单窗口=2s 脑电\n\n", g.loss_dB);
 
     int total = 0, direct_ok = 0, hbc_ok = 0, consistent = 0;
     double sum_ms = 0.0;

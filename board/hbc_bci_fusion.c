@@ -1,14 +1,14 @@
 /*
  * hbc_bci_fusion.c — 板载「HBC×BCI 融合」端到端验证（乙式：传神经信号本身）
  *
- * 证明：端侧芯片 RV1106 上，真实脑电经 HBC 穿颅信道传输后，解码准确率不下降
- * （= HBC 替代 RF 穿颅传输神经信号可行）。
+ * 证明：端侧芯片 RV1106 上，真实脑电经 HBC 体表信道传输后，解码准确率不下降
+ * （= HBC 替代 RF 体表传输神经信号可行）。
  *
  * 信号链（每试次）：
  *   [1] 加载真实脑电 (8ch × 500, BCIC IV 2a 评估集)
  *   [2] 直连解码 → pred_direct（基线）
  *   [3] 量化到 8 bit → 逐 bit OOK 调制（1MHz EQS 载波，符号级）
- *   [4] HBC 穿颅信道（49.5dB 损耗 + AWGN，分层 R-C 模型）
+ *   [4] HBC 体表信道（49.5dB 损耗 + AWGN，分层 R-C 模型）
  *   [5] 包络解调 → 恢复 bit → 反量化重建脑电
  *   [6] 经 HBC 解码 → pred_hbc
  *   [7] 对比：直连 vs 经 HBC 准确率（应相等）、BER、量化误差
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
     int N;
     if (fread(&N, 4, 1, f) != 1) { fprintf(stderr, "读取 N 失败\n"); return 1; }
 
-    /* HBC 穿颅信道（IT'IS Cole-Cole 色散分层模型，1MHz EQS 载波）
+    /* HBC 体表信道（IT'IS Cole-Cole 色散分层模型，1MHz EQS 载波）
      * C_BE = 105pF：scikit-fem 轴对称有限元求解的人体-大地返回路径电容
      * （圆柱 r=0.15m h=1.7m 对地 d_gap=0.02m，见 scripts/return_path_cap.py） */
     const double A_ELEC = 1e-6, C_BE = 105e-12;
@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
         { "脑脊液", 2.0, 0, 0 }, { "脑灰质", 10.0, 0, 0 },
     };
     ChannelResult g = channel_gain_cc(layers, ITIS_LAYERS, 5, 1.0e6, A_ELEC, C_BE);
-    double H = g.mag;                    /* 1MHz 穿颅增益（~0.0034 = -49.5dB）*/
+    double H = g.mag;                    /* 1MHz 体表增益（~0.0034 = -49.5dB）*/
     double noise_sigma = 0.1 * H;        /* 信道噪声 */
     double thresh = 0.5 * H;             /* OOK 解调阈值 */
 
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
     printf("  HBC x BCI 融合验证（乙式：传神经信号本身）— RV1106 端侧\n");
     printf("============================================================\n");
     printf("  试次数        : %d\n", N);
-    printf("  穿颅信道损耗  : %.1f dB @ 1 MHz（IT'IS Cole-Cole 色散，颅骨主衰减）\n", g.loss_dB);
+    printf("  体表信道损耗  : %.1f dB @ 1 MHz（IT'IS Cole-Cole 色散，颅骨主衰减）\n", g.loss_dB);
     printf("  量化          : %d bit / 样本（范围 ±%.0f）\n", QBITS, QRANGE);
     printf("\n");
     printf("  ── 解码结果 ──\n");
