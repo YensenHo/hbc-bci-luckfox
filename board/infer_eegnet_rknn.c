@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <time.h>
 #include "rknn_api.h"
 
@@ -56,17 +57,24 @@ int main(int argc, char **argv) {
            in_attr.dims[2], in_attr.dims[3], in_attr.size, in_attr.qnt_type,
            in_attr.scale, in_attr.zp);
 
-    /* 4. 准备输入 (1,1,8,500) float32，确定性数据（与 CPU 版对比） */
+    /* 4. 准备输入：float 量化成 int8（affine asymmetric: q = round(x/scale) + zp） */
     static float input[NSAMP];
+    static int8_t input_q[NSAMP];
     for (int i = 0; i < NSAMP; i++) input[i] = (float)(i % 7) / 7.0f - 0.5f;
+    for (int i = 0; i < NSAMP; i++) {
+        int q = (int)roundf(input[i] / in_attr.scale) + in_attr.zp;
+        if (q < -128) q = -128;
+        if (q > 127) q = 127;
+        input_q[i] = (int8_t)q;
+    }
 
     rknn_input inputs[1];
     memset(&inputs, 0, sizeof(inputs));
     inputs[0].index = 0;
-    inputs[0].type = RKNN_TENSOR_FLOAT32;
-    inputs[0].fmt = RKNN_TENSOR_NCHW;
-    inputs[0].buf = input;
-    inputs[0].size = sizeof(input);
+    inputs[0].type = RKNN_TENSOR_INT8;
+    inputs[0].fmt = RKNN_TENSOR_NHWC;
+    inputs[0].buf = input_q;
+    inputs[0].size = NSAMP;
 
     ret = rknn_inputs_set(ctx, 1, inputs);
     if (ret < 0) { fprintf(stderr, "✗ rknn_inputs_set 失败: %d\n", ret); return 1; }
