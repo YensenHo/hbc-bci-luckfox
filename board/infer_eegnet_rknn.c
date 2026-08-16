@@ -61,9 +61,10 @@ int main(int argc, char **argv) {
            in_attr.w_stride, in_attr.size_with_stride);
 
     /* 5. 准备输入：float z-score → INT8（q = round(x/scale) + zp） */
+    /*    诊断：全零输入（q=10），对比 CPU 全零输出 [0.369, -0.168] */
     static float input[NSAMP];
     static int8_t input_q[NSAMP];
-    for (int i = 0; i < NSAMP; i++) input[i] = (float)(i % 7) / 7.0f - 0.5f;
+    for (int i = 0; i < NSAMP; i++) input[i] = 0.0f;
     for (int i = 0; i < NSAMP; i++) {
         int q = (int)roundf(input[i] / in_attr.scale) + in_attr.zp;
         if (q < -128) q = -128;
