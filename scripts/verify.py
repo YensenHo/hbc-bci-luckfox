@@ -130,6 +130,12 @@ check("convert_rknn.py init_runtime try/except",
 _cal_src = open(os.path.join(ROOT, "model", "calibration.py"), encoding="utf-8").read()
 check("calibration.py relative_to(MODEL_DIR)", "relative_to(MODEL_DIR)" in _cal_src)
 
+# ---- 8. 奇数核适配（RV1106 NPU 不支持 Pad op）----
+_ei_src = open(os.path.join(BOARD, "eegnet_infer.c"), encoding="utf-8").read()
+check("eegnet_infer.c 奇数核63/15", "k < 63" in _ei_src and "k < 15" in _ei_src)
+_eg_src = open(os.path.join(ROOT, "model", "eegnet.py"), encoding="utf-8").read()
+check("eegnet.py 无 ZeroPad2d(奇数核63)", "ZeroPad2d" not in _eg_src and "kernel_length: int = 63" in _eg_src)
+
 
 def main() -> int:
     passed = sum(1 for _, ok, _ in results if ok)
