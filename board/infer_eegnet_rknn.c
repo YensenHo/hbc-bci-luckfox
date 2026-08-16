@@ -45,6 +45,17 @@ int main(int argc, char **argv) {
     if (ret < 0) { fprintf(stderr, "✗ rknn_query 失败: %d\n", ret); return 1; }
     printf("输入 %u 个, 输出 %u 个\n", io_num.n_input, io_num.n_output);
 
+    /* 3.5 查询输入属性（type/fmt/量化参数），据此设置输入 */
+    rknn_tensor_attr in_attr;
+    memset(&in_attr, 0, sizeof(in_attr));
+    in_attr.index = 0;
+    ret = rknn_query(ctx, RKNN_QUERY_INPUT_ATTR, &in_attr, sizeof(in_attr));
+    if (ret < 0) { fprintf(stderr, "✗ 查询输入属性失败: %d\n", ret); return 1; }
+    printf("输入属性: type=%d fmt=%d dims=[%u,%u,%u,%u] size=%u qnt_type=%d scale=%.6f zp=%d\n",
+           in_attr.type, in_attr.fmt, in_attr.dims[0], in_attr.dims[1],
+           in_attr.dims[2], in_attr.dims[3], in_attr.size, in_attr.qnt_type,
+           in_attr.scale, in_attr.zp);
+
     /* 4. 准备输入 (1,1,8,500) float32，确定性数据（与 CPU 版对比） */
     static float input[NSAMP];
     for (int i = 0; i < NSAMP; i++) input[i] = (float)(i % 7) / 7.0f - 0.5f;
