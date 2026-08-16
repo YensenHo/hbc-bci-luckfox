@@ -50,6 +50,8 @@ def main() -> int:
                         help="ONNX opset 版本（默认 12）")
     parser.add_argument("--no-verify", action="store_true",
                         help="跳过 onnxruntime 输出一致性校验")
+    parser.add_argument("--zero-bias", action="store_true",
+                        help="诊断用：把 fc.bias 设 0（验证 Gemm bias 量化 bug）")
     args = parser.parse_args()
 
     import torch  # noqa: PLC0415
@@ -69,6 +71,9 @@ def main() -> int:
                    F1=8, D=2, F2=16, kernel_length=63, dropout=0.5)
     model.load_state_dict(state)
     model.eval()
+    if args.zero_bias:
+        model.fc.bias.data.zero_()
+        print("⚠ 诊断模式：fc.bias 已设 0（验证 Gemm bias 量化 bug）")
     print(f"已加载权重：{CHECKPOINT}（参数量 {model.num_params():,}）")
 
     # ---- 导出 ONNX（固定形状，无动态轴）----
