@@ -100,11 +100,11 @@ int main(int argc, char **argv) {
     ret = rknn_set_io_mem(ctx, input_mem, &in_attr);
     if (ret < 0) { fprintf(stderr, "✗ rknn_set_io_mem(输入) 失败: %d\n", ret); return 1; }
 
-    /* 9. 查询输出属性 + 分配输出内存（zero-copy） */
+    /* 9. 查询输出属性（NATIVE：zero-copy 下才能拿到 NPU 实际输出格式）+ 分配输出内存 */
     rknn_tensor_attr out_attr;
     memset(&out_attr, 0, sizeof(out_attr));
     out_attr.index = 0;
-    ret = rknn_query(ctx, RKNN_QUERY_OUTPUT_ATTR, &out_attr, sizeof(out_attr));
+    ret = rknn_query(ctx, RKNN_QUERY_NATIVE_OUTPUT_ATTR, &out_attr, sizeof(out_attr));
     if (ret < 0) { fprintf(stderr, "✗ 查询输出属性失败: %d\n", ret); return 1; }
     printf("输出属性: type=%d fmt=%d n_elems=%u scale=%.6f zp=%d\n",
            out_attr.type, out_attr.fmt, out_attr.n_elems, out_attr.scale, out_attr.zp);
@@ -113,12 +113,14 @@ int main(int argc, char **argv) {
     ret = rknn_set_io_mem(ctx, output_mem, &out_attr);
     if (ret < 0) { fprintf(stderr, "✗ rknn_set_io_mem(输出) 失败: %d\n", ret); return 1; }
 
-    /* 10. 推理 + 计时（100 次） */
+    /* 10. 推理 + 计时（100 次，clock_gettime 高精度） */
     ret = rknn_run(ctx, NULL);   /* 预热 */
     if (ret < 0) { fprintf(stderr, "✗ rknn_run 失败: %d\n", ret); return 1; }
-    clock_t t0 = clock();
+    struct timespec ts0, ts1;
+    clock_gettime(CLOCK_MONOTONIC, &ts0);
     for (int n = 0; n < 100; n++) rknn_run(ctx, NULL);
-    double ms = 1000.0 * (clock() - t0) / CLOCKS_PER_SEC / 100.0;
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    double ms = ((ts1.tv_sec - ts0.tv_sec) * 1e3 + (ts1.tv_nsec - ts0.tv_nsec) / 1e6) / 100.0;
 
     /* 11. 读取输出（INT8 → float 反量化） */
     int8_t *out_q = (int8_t *)output_mem->virt_addr;
