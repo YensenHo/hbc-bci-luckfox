@@ -100,14 +100,18 @@ int main(int argc, char **argv) {
     ret = rknn_set_io_mem(ctx, input_mem, &in_attr);
     if (ret < 0) { fprintf(stderr, "✗ rknn_set_io_mem(输入) 失败: %d\n", ret); return 1; }
 
-    /* 9. 查询输出属性（NATIVE：zero-copy 下才能拿到 NPU 实际输出格式）+ 分配输出内存 */
-    rknn_tensor_attr out_attr;
+    /* 9. 查询输出属性（同时查普通 OUTPUT_ATTR 和 NATIVE_OUTPUT_ATTR，对比诊断）+ 分配输出内存 */
+    rknn_tensor_attr out_attr, out_attr_native;
     memset(&out_attr, 0, sizeof(out_attr));
+    memset(&out_attr_native, 0, sizeof(out_attr_native));
     out_attr.index = 0;
-    ret = rknn_query(ctx, RKNN_QUERY_NATIVE_OUTPUT_ATTR, &out_attr, sizeof(out_attr));
-    if (ret < 0) { fprintf(stderr, "✗ 查询输出属性失败: %d\n", ret); return 1; }
-    printf("输出属性: type=%d fmt=%d n_elems=%u scale=%.6f zp=%d\n",
-           out_attr.type, out_attr.fmt, out_attr.n_elems, out_attr.scale, out_attr.zp);
+    out_attr_native.index = 0;
+    int r1 = rknn_query(ctx, RKNN_QUERY_OUTPUT_ATTR, &out_attr, sizeof(out_attr));
+    int r2 = rknn_query(ctx, RKNN_QUERY_NATIVE_OUTPUT_ATTR, &out_attr_native, sizeof(out_attr_native));
+    printf("输出属性(普通): ret=%d type=%d fmt=%d n_elems=%u scale=%.6f zp=%d qnt_type=%d\n",
+           r1, out_attr.type, out_attr.fmt, out_attr.n_elems, out_attr.scale, out_attr.zp, out_attr.qnt_type);
+    printf("输出属性(原生): ret=%d type=%d fmt=%d n_elems=%u scale=%.6f zp=%d qnt_type=%d\n",
+           r2, out_attr_native.type, out_attr_native.fmt, out_attr_native.n_elems, out_attr_native.scale, out_attr_native.zp, out_attr_native.qnt_type);
     rknn_tensor_mem *output_mem = rknn_create_mem(ctx, out_attr.size_with_stride);
     if (!output_mem) { fprintf(stderr, "✗ rknn_create_mem(输出) 失败\n"); return 1; }
     ret = rknn_set_io_mem(ctx, output_mem, &out_attr);
@@ -125,6 +129,7 @@ int main(int argc, char **argv) {
     /* 11. 读取输出（INT8 → float 反量化） */
     int8_t *out_q = (int8_t *)output_mem->virt_addr;
     float npu_logits[2];
+    printf("输出原始 int8: [%d, %d]（前2个）\n", out_q[0], out_q[1]);
     for (unsigned int i = 0; i < out_attr.n_elems; i++) {
         npu_logits[i] = (out_q[i] - out_attr.zp) * out_attr.scale;
     }
