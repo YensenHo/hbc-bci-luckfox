@@ -127,7 +127,9 @@ int main(int argc, char **argv) {
     clock_gettime(CLOCK_MONOTONIC, &ts1);
     double ms = ((ts1.tv_sec - ts0.tv_sec) * 1e3 + (ts1.tv_nsec - ts0.tv_nsec) / 1e6) / 100.0;
 
-    /* 11. 读取输出（INT8 → float 反量化） */
+    /* 11. 读取输出：两种方式对比
+       (a) 手动反量化 (q - zp) * scale
+       (b) rknn_outputs_get(want_float=1) 让 rknn 自动反量化（可能处理 per-channel） */
     int8_t *out_q = (int8_t *)output_mem->virt_addr;
     float npu_logits[2];
     printf("输出 size=%u size_with_stride=%u w_stride=%u\n",
@@ -136,6 +138,25 @@ int main(int argc, char **argv) {
            out_q[0], out_q[1], out_q[2], out_q[3], out_q[4], out_q[5], out_q[6], out_q[7]);
     for (unsigned int i = 0; i < out_attr.n_elems; i++) {
         npu_logits[i] = (out_q[i] - out_attr.zp) * out_attr.scale;
+    }
+    /* (b) rknn 自动反量化 */
+    rknn_output outputs[1];
+    memset(outputs, 0, sizeof(outputs));
+    outputs[0].want_float = 1;
+    outputs[0].is_prealloc = 0;
+    int rget = rknn_outputs_get(ctx, 1, outputs, NULL);
+    if (rget == 0) {
+        float *auto_f = (float *)outputs[0].buf;
+        printf("rknn_outputs_get(want_float=1) = [%.4f, %.4f]（size=%u）\n",
+               auto_f[0], auto_f[1], outputs[0].size);
+        /* 优先用 rknn 自动反量化的结果 */
+        if (outputs[0].size >= 2 * sizeof(float)) {
+            npu_logits[0] = auto_f[0];
+            npu_logits[1] = auto_f[1];
+        }
+        rknn_outputs_release(ctx, 1, outputs);
+    } else {
+        printf("rknn_outputs_get 失败: %d（用手动反量化）\n", rget);
     }
 
     /* 12. 对比 CPU 版（同一输入） */
