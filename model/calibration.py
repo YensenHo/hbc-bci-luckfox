@@ -92,8 +92,9 @@ def main() -> int:
         sample = np.ascontiguousarray(sample, dtype=np.float32)
         path = CALIB_DIR / f"{i:04d}.npy"
         np.save(path, sample)
-        # 写相对 PROJECT_ROOT 的路径，保证跨平台（Mac 生成、Linux 转换）可用
-        lines.append(str(path.relative_to(PROJECT_ROOT)))
+        # 写相对 MODEL_DIR 的路径：rknn build 读 txt 时按「txt 所在目录」解析，
+        # 故 txt 里不能带 model/ 前缀（否则拼成 model/model/...）
+        lines.append(str(path.relative_to(MODEL_DIR)))
 
     CALIB_TXT.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

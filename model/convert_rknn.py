@@ -90,7 +90,7 @@ def _verify_accuracy(rknn, onnx_ref_logits: np.ndarray | None) -> None:
     total = 0
     # 只取前若干样本验证，避免模拟器耗时过长
     for ln in lines[:50]:
-        x = np.load(ln).astype(np.float32)
+        x = np.load(MODEL_DIR / ln).astype(np.float32)
         # 确保形状 (1,1,22,500)
         if x.shape != INPUT_SHAPE:
             x = x.reshape(INPUT_SHAPE)
