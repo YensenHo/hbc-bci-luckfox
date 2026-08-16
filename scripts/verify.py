@@ -125,6 +125,8 @@ if os.path.exists(_calib_txt):
           f"{len(_lines)}行" if _ok else "路径含 model/ 前缀")
 _cc_src = open(os.path.join(ROOT, "model", "convert_rknn.py"), encoding="utf-8").read()
 check("convert_rknn.py np.load(MODEL_DIR/ln)", "np.load(MODEL_DIR / ln)" in _cc_src)
+check("convert_rknn.py init_runtime try/except",
+      "except Exception" in _cc_src and _cc_src.find("rknn.init_runtime") > _cc_src.rfind("try:"))
 _cal_src = open(os.path.join(ROOT, "model", "calibration.py"), encoding="utf-8").read()
 check("calibration.py relative_to(MODEL_DIR)", "relative_to(MODEL_DIR)" in _cal_src)
 
