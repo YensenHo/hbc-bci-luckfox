@@ -66,8 +66,8 @@ def export(checkpoint: Path) -> None:
                           sd["bn3.bias"].numpy(), sd["bn3.running_mean"].numpy(),
                           sd["bn3.running_var"].numpy(), eps)
 
-    # ---- FC ----
-    fc_w = sd["fc.weight"].numpy()                             # (2,240)
+    # ---- FC（Conv2d(240,2,1x1)，等价 Linear，reshape 掉 1x1 空间维）----
+    fc_w = sd["fc.weight"].numpy().reshape(2, -1)              # (2,240,1,1) -> (2,240)
     fc_b = sd["fc.bias"].numpy()                               # (2,)
 
     # ---- 生成 C 头文件 ----

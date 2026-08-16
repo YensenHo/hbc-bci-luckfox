@@ -80,9 +80,12 @@ class EEGNet(nn.Module):
         self.dropout2 = nn.Dropout(dropout)
 
         # ---- 分类头：T → T//4 → T//32 ----
+        # 用 Conv2d(1x1) 代替 Linear：Linear 在 ONNX 里是 Gemm，
+        # rknn-toolkit2 2.3.2 对 Gemm 的量化有 bug（logits[0] 恒定偏移 -44），
+        # Conv2d(1x1) 走 Conv 量化路径（NPU 原生优化），规避该 bug。
         self.temporal_out = input_length // 32
         self.flatten = nn.Flatten()
-        self.fc = nn.Linear(F2 * self.temporal_out, n_classes)
+        self.fc = nn.Conv2d(F2 * self.temporal_out, n_classes, (1, 1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x: (B, 1, C, T) → 输出 (B, n_classes) 未归一化 logits。
@@ -113,9 +116,11 @@ class EEGNet(nn.Module):
         x = self.pool2(x)          # (B, F2, 1, T//32)
         x = self.dropout2(x)
 
-        # 分类头
+        # 分类头：flatten → reshape (B, C, 1, 1) → conv1x1 → (B, n_classes)
         x = self.flatten(x)        # (B, F2 * T//32)
-        x = self.fc(x)             # (B, n_classes)
+        x = x.view(x.shape[0], self.F2 * self.temporal_out, 1, 1)  # (B, C, 1, 1)
+        x = self.fc(x)             # (B, n_classes, 1, 1)
+        x = x.view(x.shape[0], self.n_classes)  # (B, n_classes)
         return x
 
     def num_params(self) -> int:
