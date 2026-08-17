@@ -40,6 +40,16 @@ jobs:
           pip install "onnx==1.14.1"
           pip install onnxruntime
 
+      - name: Inspect hybrid-quant API (混合量化签名)
+        run: |
+          python -c "
+          from rknn.api import RKNN
+          import inspect
+          for m in ['hybrid_quantization_step1','hybrid_quantization_step2','config','build']:
+              fn = getattr(RKNN, m, None)
+              print(m, '->', inspect.signature(fn) if fn else 'NOT FOUND')
+          "
+
       - name: Convert ONNX → RKNN (INT8, rv1106) + 模拟器精度验证
         run: python model/convert_rknn.py --verify
 
