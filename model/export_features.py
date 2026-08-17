@@ -41,9 +41,20 @@ def main() -> int:
     model.eval()
 
     # ---- 1. 导出 features ONNX（到 flatten，240 维）----
+    #   关键：必须导出 forward_features（到 flatten），不是完整 forward（到 logits）。
+    #   用 wrapper 模型显式调用 forward_features，避免 torch.onnx.export 走完整 forward。
+    class FeatureModel(torch.nn.Module):
+        def __init__(self, base):
+            super().__init__()
+            self.base = base
+
+        def forward(self, x):
+            return self.base.forward_features(x)
+
+    feat_model = FeatureModel(model)
     dummy = torch.randn(1, 1, 8, 500, dtype=torch.float32)
     torch.onnx.export(
-        model, dummy, str(FEAT_ONNX),
+        feat_model, dummy, str(FEAT_ONNX),
         input_names=["eeg_input"], output_names=["features"],
         opset_version=12, do_constant_folding=True,
     )
@@ -71,6 +82,9 @@ def main() -> int:
     print(f"✓ fc 权重已导出：{FC_HEADER}（{n_out}×{n_in} + bias {n_out}）")
 
     # ---- 3. 自检：CPU 版 features+fc 与完整 forward 一致 ----
+    #   注意：torch.onnx.export 会把 model 切回 training 模式（dropout 生效），
+    #   自检前必须重新 model.eval()，否则 dropout 随机丢弃导致误差随机。
+    model.eval()
     with torch.no_grad():
         feat = model.forward_features(dummy).numpy()      # (1, 240)
         logits_ref = model(dummy).numpy()                 # (1, 2)
