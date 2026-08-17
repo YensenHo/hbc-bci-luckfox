@@ -168,18 +168,15 @@ def main() -> int:
     if ret != 0:
         raise SystemExit(f"✗ build 失败，返回码 {ret}")
 
-    # ---- 4. 用 rv1106 模拟器验证精度后再导出（可选，x86 上无模拟器会抛异常）----
-    #   注意：init_runtime 失败会抛 ValueError（而非返回非 0），必须 try/except 包裹；
-    #   导出 .rknn 不依赖 init_runtime，模拟器仅用于转换后精度自检。
-    print("初始化 rv1106 模拟器...")
-    try:
-        ret = rknn.init_runtime(target="rv1106")
-        if ret != 0:
-            print("  ⚠ init_runtime 返回非 0，跳过精度验证")
-        elif args.verify:
-            _verify_accuracy(rknn)
-    except Exception as exc:  # noqa: BLE001 —— x86 无 rv1106 模拟器属预期
-        print(f"  ⚠ init_runtime 异常（x86 无 rv1106 模拟器，跳过精度验证）：{exc}")
+    # ---- 4. 用 rv1106 软件模拟器验证精度（x86 上用 CPU 模拟 NPU，切开「转换 vs 板载」）----
+    #    rknn-toolkit2 自带 rv1106 模拟器（不依赖真板子）。若这里异常，必须让它暴露出来
+    #    （不能吞异常），否则永远不知道「量化对不对」。
+    print("初始化 rv1106 软件模拟器...")
+    ret = rknn.init_runtime(target="rv1106")
+    if ret != 0:
+        print(f"  ⚠ init_runtime 返回非 0（{ret}），跳过精度验证")
+    elif args.verify:
+        _verify_accuracy(rknn)
 
     # ---- 5. 导出 .rknn ----
     print(f"导出 RKNN：{RKNN_PATH}")
