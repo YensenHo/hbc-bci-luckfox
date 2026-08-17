@@ -66,6 +66,7 @@ int main(int argc, char **argv) {
 
     npu_eegnet_ctx *npu = npu_eegnet_init(argv[1]);
     if (!npu) { fprintf(stderr, "✗ NPU 初始化失败\n"); return 1; }
+    float *feat = (float *)malloc(npu_eegnet_out_elems(npu) * sizeof(float));
 
     FILE *f = fopen(argv[2], "rb");
     if (!f) { fprintf(stderr, "打不开 %s\n", argv[2]); return 1; }
@@ -95,7 +96,8 @@ int main(int argc, char **argv) {
         /* [2] 直连解码：NPU + CPU 对照 */
         float logits_d_npu[2], logits_d_cpu[2];
         double t0 = wall_ms();
-        npu_eegnet_infer(npu, x, logits_d_npu);
+        npu_eegnet_run(npu, x, feat);        /* NPU 算到特征 */
+        fc_compute(feat, logits_d_npu);       /* CPU 算 fc */
         double t1 = wall_ms();
         int pn = logits_d_npu[0] > logits_d_npu[1] ? 0 : 1;
         int pc = eegnet_infer(x, logits_d_cpu);
@@ -126,7 +128,8 @@ int main(int argc, char **argv) {
 
         /* [6] 经 HBC 解码：NPU + CPU 对照 */
         float logits_h_npu[2], logits_h_cpu[2];
-        npu_eegnet_infer(npu, x_rec, logits_h_npu);
+        npu_eegnet_run(npu, x_rec, feat);     /* NPU 算到特征 */
+        fc_compute(feat, logits_h_npu);        /* CPU 算 fc */
         int pn_h = logits_h_npu[0] > logits_h_npu[1] ? 0 : 1;
         int pc_h = eegnet_infer(x_rec, logits_h_cpu);
         if (pn_h == y) npu_hbc_ok++;
