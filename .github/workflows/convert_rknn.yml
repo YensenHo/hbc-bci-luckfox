@@ -81,6 +81,17 @@ jobs:
             -o npu_audit
           file npu_audit
 
+      - name: Cross-compile NPU fusion loop (NPU 进闭环)
+        run: |
+          TC=/tmp/luckfox/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf
+          export PATH="$TC/bin:$PATH"
+          arm-rockchip830-linux-uclibcgnueabihf-gcc -O2 -I board \
+            board/hbc_bci_fusion_npu.c board/npu_eegnet.c \
+            board/hbc_channel.c board/eegnet_infer.c \
+            -L board -lrknnmrt -lm -Wl,-rpath,/oem/usr/lib \
+            -o hbc_bci_fusion_npu
+          file hbc_bci_fusion_npu
+
       - name: Upload eegnet_npu
         uses: actions/upload-artifact@v4
         with:
@@ -92,3 +103,9 @@ jobs:
         with:
           name: npu-audit
           path: npu_audit
+
+      - name: Upload hbc_bci_fusion_npu
+        uses: actions/upload-artifact@v4
+        with:
+          name: hbc-bci-fusion-npu
+          path: hbc_bci_fusion_npu
