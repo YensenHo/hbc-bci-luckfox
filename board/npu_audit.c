@@ -47,14 +47,21 @@ int main(int argc, char **argv) {
     int zlp = 0, match = 0, cpu_ok = 0;
     double maxd0 = 0, maxd1 = 0, sumd0 = 0, sumd1 = 0;
 
-    printf("=== NPU 全测试集对账（%d 样本，fc 拆 CPU）===\n", N);
+    printf("=== NPU 全测试集对账（%d 样本）===\n", N);
     printf("  前 20 样本：NPU logits vs CPU logits（诊断偏差模式）\n");
     int show = N < 20 ? N : 20;
-    float *feat = (float *)malloc(npu_eegnet_out_elems(npu) * sizeof(float));
+    unsigned int ne = npu_eegnet_out_elems(npu);
+    float *feat = (float *)malloc((ne > 0 ? ne : 2) * sizeof(float));
     for (int i = 0; i < N; i++) {
         float logits[2];
-        npu_eegnet_run(npu, &X[(size_t)i * 4000], feat);   /* NPU 算到 240 维特征 */
-        fc_compute(feat, logits);                            /* CPU 算 fc → logits */
+        if (ne == 2) {
+            /* 完整模型：输出 2 维 logits，直接反量化（无 fc） */
+            npu_eegnet_run(npu, &X[(size_t)i * 4000], logits);
+        } else {
+            /* features 模型：NPU 算到 240 维特征，CPU 算 fc */
+            npu_eegnet_run(npu, &X[(size_t)i * 4000], feat);
+            fc_compute(feat, logits);
+        }
         float d0 = fabsf(logits[0] - cpu_logits[(size_t)i * 2 + 0]);
         float d1 = fabsf(logits[1] - cpu_logits[(size_t)i * 2 + 1]);
         if (d0 > maxd0) maxd0 = d0;
