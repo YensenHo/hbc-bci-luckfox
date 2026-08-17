@@ -75,8 +75,8 @@ def _import_rknn():
         ) from exc
 
 
-def _verify_accuracy(rknn, onnx_ref_logits: np.ndarray | None) -> None:
-    """用 rv1106 模拟器跑一遍校准集，对比分类准确率（可选）。"""
+def _verify_accuracy(rknn) -> None:
+    """用 rv1106 模拟器跑校准集，对比 ONNX 输出（定位量化误差在转换阶段还是 runtime 阶段）。"""
     if not CALIB_TXT.exists():
         print("  · 未找到 calib_data.txt，跳过精度验证。")
         return
@@ -86,26 +86,40 @@ def _verify_accuracy(rknn, onnx_ref_logits: np.ndarray | None) -> None:
         print("  · calib_data.txt 为空，跳过精度验证。")
         return
 
+    # ONNX 参考（onnxruntime）
+    try:
+        import onnxruntime as ort  # noqa: PLC0415
+        sess = ort.InferenceSession(str(ONNX_PATH), providers=["CPUExecutionProvider"])
+        in_name = sess.get_inputs()[0].name
+    except Exception as exc:  # noqa: BLE001
+        print(f"  · 无法加载 onnxruntime（{exc}），跳过 ONNX 对比。")
+        sess = None
+
     correct = 0
     total = 0
-    # 只取前若干样本验证，避免模拟器耗时过长
-    for ln in lines[:50]:
+    max_err = 0.0
+    sum_err = 0.0
+    for ln in lines[:100]:
         x = np.load(MODEL_DIR / ln).astype(np.float32)
-        # 确保形状 (1,1,22,500)
         if x.shape != INPUT_SHAPE:
             x = x.reshape(INPUT_SHAPE)
         out = rknn.inference(inputs=[x])
-        pred = int(np.argmax(out[0]))
+        npu_logits = np.asarray(out[0]).ravel()
         total += 1
-        if onnx_ref_logits is not None:
-            # 以 ONNX 的 argmax 作为"真值"来比对模拟器
-            ref = int(np.argmax(onnx_ref_logits))
+        if sess is not None:
+            onnx_logits = sess.run(None, {in_name: x})[0].ravel()
+            ref = int(np.argmax(onnx_logits))
+            pred = int(np.argmax(npu_logits))
             correct += (pred == ref)
-        else:
-            print(f"  样本 {total}: 模拟器 argmax={pred}")
-    if onnx_ref_logits is not None:
+            e = float(np.abs(npu_logits - onnx_logits).max())
+            if e > max_err:
+                max_err = e
+            sum_err += e
+    if sess is not None:
         print(f"  ✓ 模拟器 vs ONNX 分类一致率：{correct}/{total} = {correct/total*100:.1f}%")
-    print("  （注：rv1106 模拟器运行的是量化后模型，与板载 NPU 行为基本一致。）")
+        print(f"     logits 最大误差 {max_err:.4f}，平均误差 {sum_err/total:.4f}")
+        print("  （模拟器 = 量化后模型。若一致率≈100%，则量化在转换阶段正确，问题在板子 runtime；")
+        print("   若一致率远低于 100%，则 INT8 量化本身精度损失严重，需混合量化/更大校准集。）")
 
 
 def main() -> int:
@@ -161,7 +175,7 @@ def main() -> int:
         if ret != 0:
             print("  ⚠ init_runtime 返回非 0，跳过精度验证")
         elif args.verify:
-            _verify_accuracy(rknn, None)
+            _verify_accuracy(rknn)
     except Exception as exc:  # noqa: BLE001 —— x86 无 rv1106 模拟器属预期
         print(f"  ⚠ init_runtime 异常（x86 无 rv1106 模拟器，跳过精度验证）：{exc}")
 
