@@ -1,5 +1,5 @@
 /*
- * npu_eegnet.c — RV1106 NPU 上 EEGNet 推理封装实现
+ * npu_eegnet.c — RV1106 NPU 上 EEGNet 推理封装实现（P2-1：fc 拆 CPU）
  * 见 npu_eegnet.h。
  */
 #include <stdio.h>
@@ -9,10 +9,9 @@
 #include <math.h>
 #include "rknn_api.h"
 #include "npu_eegnet.h"
+#include "fc_weights.h"   /* fc_w[2][240], fc_b[2] — 由 export_features.py 生成 */
 
 #define NSAMP (8 * 500)   /* 4000 */
-/* rknn 输出量化 bug：logits[0] 恒定偏移 -44（int8）→ +44*scale 修正 */
-#define LOGITS0_OFFSET_FIX 44
 
 struct npu_eegnet_ctx {
     rknn_context ctx;
@@ -41,24 +40,20 @@ npu_eegnet_ctx *npu_eegnet_init(const char *model_path) {
     npu_eegnet_ctx *h = (npu_eegnet_ctx *)calloc(1, sizeof(*h));
     h->ctx = ctx;
 
-    /* 输入属性 */
     memset(&h->in_attr, 0, sizeof(h->in_attr));
     h->in_attr.index = 0;
     ret = rknn_query(ctx, RKNN_QUERY_INPUT_ATTR, &h->in_attr, sizeof(h->in_attr));
     if (ret < 0) { fprintf(stderr, "✗ 查询输入属性失败: %d\n", ret); goto fail; }
 
-    /* 输出属性（NATIVE） */
     memset(&h->out_attr, 0, sizeof(h->out_attr));
     h->out_attr.index = 0;
     ret = rknn_query(ctx, RKNN_QUERY_NATIVE_OUTPUT_ATTR, &h->out_attr, sizeof(h->out_attr));
     if (ret < 0) { fprintf(stderr, "✗ 查询输出属性失败: %d\n", ret); goto fail; }
 
-    /* zero-copy 内存 */
     h->input_mem = rknn_create_mem(ctx, h->in_attr.size_with_stride);
     h->output_mem = rknn_create_mem(ctx, h->out_attr.size_with_stride);
     if (!h->input_mem || !h->output_mem) { fprintf(stderr, "✗ rknn_create_mem 失败\n"); goto fail; }
 
-    /* 输入 INT8 + NHWC */
     h->in_attr.type = RKNN_TENSOR_INT8;
     h->in_attr.fmt = RKNN_TENSOR_NHWC;
     ret = rknn_set_io_mem(ctx, h->input_mem, &h->in_attr);
@@ -74,7 +69,11 @@ fail:
     return NULL;
 }
 
-int npu_eegnet_infer(npu_eegnet_ctx *h, const float *x, float *logits) {
+unsigned int npu_eegnet_out_elems(npu_eegnet_ctx *h) {
+    return h->out_attr.n_elems;
+}
+
+int npu_eegnet_run(npu_eegnet_ctx *h, const float *x, float *out) {
     /* 量化输入：q = round(x/scale) + zp */
     for (int i = 0; i < NSAMP; i++) {
         int q = (int)roundf(x[i] / h->in_attr.scale) + h->in_attr.zp;
@@ -82,7 +81,6 @@ int npu_eegnet_infer(npu_eegnet_ctx *h, const float *x, float *logits) {
         if (q > 127) q = 127;
         h->input_q[i] = (int8_t)q;
     }
-    /* 拷贝到 zero-copy 内存（处理 w_stride 对齐） */
     int width = h->in_attr.dims[2];
     int stride = h->in_attr.w_stride;
     int height = h->in_attr.dims[1];
@@ -103,13 +101,22 @@ int npu_eegnet_infer(npu_eegnet_ctx *h, const float *x, float *logits) {
     int ret = rknn_run(h->ctx, NULL);
     if (ret < 0) return ret;
 
-    /* 反量化输出 */
+    /* 反量化输出（无反量化 hack） */
     int8_t *out_q = (int8_t *)h->output_mem->virt_addr;
-    for (unsigned int i = 0; i < h->out_attr.n_elems && i < 2; i++) {
-        logits[i] = (out_q[i] - h->out_attr.zp) * h->out_attr.scale;
+    for (unsigned int i = 0; i < h->out_attr.n_elems; i++) {
+        out[i] = (out_q[i] - h->out_attr.zp) * h->out_attr.scale;
     }
-    logits[0] += (float)LOGITS0_OFFSET_FIX * h->out_attr.scale;
     return 0;
+}
+
+void fc_compute(const float *feat, float *logits) {
+    for (int o = 0; o < FC_OUT; o++) {
+        float acc = fc_b[o];
+        for (int i = 0; i < FC_IN; i++) {
+            acc += fc_w[o][i] * feat[i];
+        }
+        logits[o] = acc;
+    }
 }
 
 void npu_eegnet_free(npu_eegnet_ctx *h) {

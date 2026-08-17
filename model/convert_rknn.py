@@ -59,6 +59,13 @@ INPUT_SHAPE = (1, 1, 8, 500)
 N_CLASSES = 2
 
 
+def _switch_features(on: bool) -> tuple[Path, Path]:
+    """切换 features 模型（到 flatten 240 维，P2-1 fc 拆 CPU）。"""
+    if on:
+        return MODEL_DIR / "eegnet_features.onnx", MODEL_DIR / "eegnet_features.rknn"
+    return ONNX_PATH, RKNN_PATH
+
+
 def _import_rknn():
     """导入 rknn-toolkit2，未安装 / 平台不支持时给出清晰中文提示。"""
     try:
@@ -126,14 +133,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="ONNX → RKNN (INT8, rv1106)")
     parser.add_argument("--verify", action="store_true",
                         help="转换后跑校准集验证量化精度")
+    parser.add_argument("--features", action="store_true",
+                        help="转 features 模型（到 flatten 240 维，fc 拆 CPU，P2-1）")
     args = parser.parse_args()
 
     RKNN = _import_rknn()
+    onnx_path, rknn_path = _switch_features(args.features)
 
-    if not ONNX_PATH.exists():
+    if not onnx_path.exists():
         raise SystemExit(
-            f"✗ ONNX 文件缺失：{ONNX_PATH}\n"
+            f"✗ ONNX 文件缺失：{onnx_path}\n"
             "  请先在能跑 torch 的环境导出：python3 model/export_onnx.py\n"
+            "  （features 版：python3 model/export_features.py）\n"
             "  再把 eegnet.onnx 拷贝到本机。"
         )
     if not CALIB_TXT.exists():
@@ -155,8 +166,8 @@ def main() -> int:
                 optimization_level=3)
 
     # ---- 2. 加载 ONNX ----
-    print(f"加载 ONNX：{ONNX_PATH}")
-    ret = rknn.load_onnx(model=str(ONNX_PATH))
+    print(f"加载 ONNX：{onnx_path}")
+    ret = rknn.load_onnx(model=str(onnx_path))
     if ret != 0:
         raise SystemExit(f"✗ load_onnx 失败，返回码 {ret}（可能是 opset 版本不兼容）")
 
@@ -168,24 +179,27 @@ def main() -> int:
     if ret != 0:
         raise SystemExit(f"✗ build 失败，返回码 {ret}")
 
-    # ---- 4. 用 rv1106 软件模拟器验证精度（x86 上用 CPU 模拟 NPU，切开「转换 vs 板载」）----
-    #    rknn-toolkit2 自带 rv1106 模拟器（不依赖真板子）。若这里异常，必须让它暴露出来
-    #    （不能吞异常），否则永远不知道「量化对不对」。
-    print("初始化 rv1106 软件模拟器...")
-    ret = rknn.init_runtime(target="rv1106")
-    if ret != 0:
-        print(f"  ⚠ init_runtime 返回非 0（{ret}），跳过精度验证")
-    elif args.verify:
-        _verify_accuracy(rknn)
+    # ---- 4. 验证精度（注意：rv1106 无 x86 软件模拟器，init_runtime 需真板子，跳过）----
+    #    init_runtime(target="rv1106") 在 x86 上会 RuntimeError（get_board_info 连真板子），
+    #    故这里 try/except 包裹、跳过；板载精度用 board/npu_audit.c 实测。
+    print("初始化 rv1106 runtime（x86 无模拟器，预期跳过）...")
+    try:
+        ret = rknn.init_runtime(target="rv1106")
+        if ret != 0:
+            print(f"  ⚠ init_runtime 返回非 0（{ret}），跳过精度验证")
+        elif args.verify:
+            _verify_accuracy(rknn)
+    except Exception as exc:  # noqa: BLE001 —— rv1106 无 x86 模拟器，连真板子失败属预期
+        print(f"  ⚠ init_runtime 异常（rv1106 无 x86 模拟器，跳过）：{exc}")
 
     # ---- 5. 导出 .rknn ----
-    print(f"导出 RKNN：{RKNN_PATH}")
-    ret = rknn.export_rknn(str(RKNN_PATH))
+    print(f"导出 RKNN：{rknn_path}")
+    ret = rknn.export_rknn(str(rknn_path))
     if ret != 0:
         raise SystemExit(f"✗ export_rknn 失败，返回码 {ret}")
 
-    size_kb = RKNN_PATH.stat().st_size / 1024
-    print(f"\n✓ RKNN 模型已导出：{RKNN_PATH}（{size_kb:.1f} KB）")
+    size_kb = rknn_path.stat().st_size / 1024
+    print(f"\n✓ RKNN 模型已导出：{rknn_path}（{size_kb:.1f} KB）")
     if size_kb > 50:
         print("  ⚠ 模型 >50KB，请检查是否意外包含冗余算子（EEGNet 预期 <50KB）")
     else:

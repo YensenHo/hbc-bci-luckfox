@@ -87,11 +87,10 @@ class EEGNet(nn.Module):
         self.flatten = nn.Flatten()
         self.fc = nn.Conv2d(F2 * self.temporal_out, n_classes, (1, 1))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """x: (B, 1, C, T) → 输出 (B, n_classes) 未归一化 logits。
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        """x: (B, 1, C, T) → 输出 (B, F2*T//32) 的 240 维特征（flatten 后，fc 之前）。
 
-        手动补零（torch.cat + new_zeros）+ valid conv，避免 ONNX 生成 Pad op
-        （RV1106 NPU 的 Conv 不支持 padding）。数学上与 'same' padding 等价。
+        供 NPU 只算到特征层（P2-1：fc 拆到 CPU），避免输出层 INT8 量化误差。
         """
         # Block 1
         B, C, H, T = x.shape
@@ -115,9 +114,13 @@ class EEGNet(nn.Module):
         x = self.elu(x)
         x = self.pool2(x)          # (B, F2, 1, T//32)
         x = self.dropout2(x)
+        x = self.flatten(x)        # (B, F2 * T//32) = (B, 240)
+        return x
 
-        # 分类头：flatten → reshape (B, C, 1, 1) → conv1x1 → (B, n_classes)
-        x = self.flatten(x)        # (B, F2 * T//32)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x: (B, 1, C, T) → 输出 (B, n_classes) 未归一化 logits。"""
+        x = self.forward_features(x)             # (B, 240)
+        # 分类头：reshape (B, C, 1, 1) → conv1x1 → (B, n_classes)
         x = x.view(x.shape[0], self.F2 * self.temporal_out, 1, 1)  # (B, C, 1, 1)
         x = self.fc(x)             # (B, n_classes, 1, 1)
         x = x.view(x.shape[0], self.n_classes)  # (B, n_classes)

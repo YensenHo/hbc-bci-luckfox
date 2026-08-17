@@ -19,6 +19,11 @@ on:
       - 'board/npu_eegnet.c'
       - 'board/npu_eegnet.h'
       - 'board/npu_audit.c'
+      - 'model/eegnet.py'
+      - 'model/export_features.py'
+      - 'model/eegnet_features.onnx'
+      - 'board/fc_weights.h'
+      - 'board/hbc_bci_fusion_npu.c'
 
 jobs:
   convert:
@@ -55,11 +60,20 @@ jobs:
       - name: Convert ONNX → RKNN (INT8, rv1106) + 模拟器精度验证
         run: python model/convert_rknn.py --verify
 
+      - name: Convert features ONNX → RKNN (fc 拆 CPU)
+        run: python model/convert_rknn.py --features
+
       - name: Upload eegnet.rknn
         uses: actions/upload-artifact@v4
         with:
           name: eegnet-rknn
           path: model/eegnet.rknn
+
+      - name: Upload eegnet_features.rknn
+        uses: actions/upload-artifact@v4
+        with:
+          name: eegnet-features-rknn
+          path: model/eegnet_features.rknn
 
   compile:
     runs-on: ubuntu-latest
