@@ -16,6 +16,9 @@ on:
       - 'board/infer_eegnet_rknn.c'
       - 'board/eegnet_infer.c'
       - 'board/eegnet_weights.h'
+      - 'board/npu_eegnet.c'
+      - 'board/npu_eegnet.h'
+      - 'board/npu_audit.c'
 
 jobs:
   convert:
@@ -68,8 +71,24 @@ jobs:
             -o eegnet_npu
           file eegnet_npu
 
+      - name: Cross-compile NPU audit (全测试集对账)
+        run: |
+          TC=/tmp/luckfox/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf
+          export PATH="$TC/bin:$PATH"
+          arm-rockchip830-linux-uclibcgnueabihf-gcc -O2 -I board \
+            board/npu_audit.c board/npu_eegnet.c \
+            -L board -lrknnmrt -lm -Wl,-rpath,/oem/usr/lib \
+            -o npu_audit
+          file npu_audit
+
       - name: Upload eegnet_npu
         uses: actions/upload-artifact@v4
         with:
           name: eegnet-npu
           path: eegnet_npu
+
+      - name: Upload npu_audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: npu-audit
+          path: npu_audit
