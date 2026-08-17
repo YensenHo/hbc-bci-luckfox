@@ -39,9 +39,9 @@ jobs:
 
       - name: Install rknn-toolkit2
         run: |
-          pip install rknn-toolkit2==2.3.2
-          # rknn-toolkit2 2.3.2 内部用到 onnx.mapping（onnx>=1.16 已移除该 API），
-          # 需降级 onnx 到 1.14.x，否则 load_onnx 报 AttributeError
+          # RV1106 板载 librknnmrt 是 1.6.0（2024-01），配 2.2.0 版 toolkit2 更稳（2.3.2 量化精度异常）
+          pip install rknn-toolkit2==2.2.0
+          # rknn-toolkit2 内部用到 onnx.mapping（onnx>=1.16 已移除该 API），需降级 onnx
           pip install "onnx==1.14.1"
           pip install onnxruntime
 
