@@ -172,10 +172,8 @@ def main() -> int:
         raise SystemExit(f"✗ load_onnx 失败，返回码 {ret}（可能是 opset 版本不兼容）")
 
     # ---- 3. 构建 + INT8 量化（用校准集统计激活范围）----
-    #   auto_hybrid=True：让 rknn 自动把量化误差大的层（如输出层 logits）保持高精度（FP16），
-    #   解决「输出层被强制 INT8 → logits 精度损失 → argmax 一致率仅 53.82%」的问题。
-    print(f"构建 RKNN 模型（INT8 量化 + auto_hybrid，校准集：{CALIB_TXT}）...")
-    ret = rknn.build(do_quantization=True, dataset=str(CALIB_TXT), auto_hybrid=True)
+    print(f"构建 RKNN 模型（INT8 量化，校准集：{CALIB_TXT}）...")
+    ret = rknn.build(do_quantization=True, dataset=str(CALIB_TXT))
     if ret != 0:
         raise SystemExit(f"✗ build 失败，返回码 {ret}")
 
