@@ -56,8 +56,8 @@ CALIB_TXT = MODEL_DIR / "calib_data.txt"
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="生成 RKNN INT8 量化校准集")
-    parser.add_argument("--num", type=int, default=200,
-                        help="校准样本数（默认 200）")
+    parser.add_argument("--num", type=int, default=500,
+                        help="校准样本数（默认 500）")
     parser.add_argument("--seed", type=int, default=42,
                         help="采样随机种子（默认 42）")
     args = parser.parse_args()

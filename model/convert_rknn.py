@@ -134,9 +134,11 @@ def main() -> int:
     # ---- 1. 配置：输入已 z-score，均值 0 标准差 1，故不做额外归一 ----
     #   mean_values / std_values 的格式：[[c0, c1, ...]]，按通道给定；
     #   本模型输入通道 C=1，故 [[0]] / [[1]]。
-    print("配置 RKNN（target=rv1106, INT8, optimization_level=0 避免 Pad 拆分）...")
+    print("配置 RKNN（target=rv1106, INT8, optimization_level=3）...")
+    # 注：optimization_level=3 让 rknn 做算子融合（Conv+BN 等），减少量化层数、降低误差累积。
+    # 之前的 Pad 拆分问题已用「cat pad + valid conv」根治（见 eegnet.py），不再需要 optimization_level=0。
     rknn.config(mean_values=[[0]], std_values=[[1]], target_platform="rv1106",
-                optimization_level=0)
+                optimization_level=3)
 
     # ---- 2. 加载 ONNX ----
     print(f"加载 ONNX：{ONNX_PATH}")
