@@ -44,6 +44,7 @@ class EEGNet(nn.Module):
         F2: int = 16,
         kernel_length: int = 63,
         dropout: float = 0.5,
+        activation: str = "elu",
     ):
         super().__init__()
         self.n_channels = n_channels
@@ -64,7 +65,8 @@ class EEGNet(nn.Module):
             F1, D * F1, (n_channels, 1), groups=F1, padding=0, bias=False
         )
         self.bn2 = nn.BatchNorm2d(D * F1)
-        self.elu = nn.ELU()
+        # 激活函数：elu（原版）/ relu（诊断：排除 ELU 负半轴指数对 INT8 量化的影响）
+        self.elu = nn.ELU() if activation == "elu" else nn.ReLU()
         self.pool1 = nn.AvgPool2d((1, 4))
         self.dropout1 = nn.Dropout(dropout)
 

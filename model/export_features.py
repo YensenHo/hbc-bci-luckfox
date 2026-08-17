@@ -30,13 +30,20 @@ sys.path.insert(0, str(MODEL_DIR))
 
 
 def main() -> int:
+    import argparse
     import torch  # noqa: PLC0415
     from eegnet import EEGNet  # noqa: PLC0415
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--activation", type=str, default="elu",
+                        help="激活函数 elu/relu（relu 用于诊断 ELU 的 INT8 量化问题）")
+    args = parser.parse_args()
 
     ckpt = torch.load(CHECKPOINT, map_location="cpu", weights_only=False)
     state = ckpt["state_dict"] if isinstance(ckpt, dict) and "state_dict" in ckpt else ckpt
     model = EEGNet(n_channels=8, n_classes=2, input_length=500,
-                   F1=8, D=2, F2=16, kernel_length=63, dropout=0.5)
+                   F1=8, D=2, F2=16, kernel_length=63, dropout=0.5,
+                   activation=args.activation)
     model.load_state_dict(state)
     model.eval()
 

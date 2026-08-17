@@ -118,6 +118,8 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--no-cuda", action="store_true")
     parser.add_argument("--workers", type=int, default=0)
+    parser.add_argument("--activation", type=str, default="elu",
+                        help="激活函数 elu/relu（relu 用于诊断 ELU 的 INT8 量化问题）")
     args = parser.parse_args()
 
     import torch  # noqa: PLC0415
@@ -161,7 +163,8 @@ def main() -> int:
 
     # ---- 模型 ----
     model = EEGNet(n_channels=8, n_classes=2, input_length=500,
-                   F1=8, D=2, F2=16, kernel_length=63, dropout=0.5)
+                   F1=8, D=2, F2=16, kernel_length=63, dropout=0.5,
+                   activation=args.activation)
     model = model.to(device)
     print(f"参数量   : {model.num_params():,}")
 
