@@ -1,6 +1,10 @@
 /*
  * hbc_bci_loop.c — 板载「人体通信 × 脑机接口」闭环仿真系统
  *
+ * ⚠️ SUPERSEDED（已归档）：本程序是早期玩具版——用「合成 EEG + Goertzel 频域解码」，
+ *   已被「真实 EEG + EEGNet 解码」的 hbc_bci_fusion.c 全面取代。保留仅作历史对照，
+ *   审稿/展示请用 hbc_bci_fusion.c（真实脑电）与 hbc_bci_realtime.c（实时流式）。
+ *
  * 把 PPT 的 HBC-BCI 信号链在 RV1106 上完整仿真一遍：
  *
  *   [1] 合成脑电(运动想象 4 类, mu/beta/gamma 节律)
@@ -216,8 +220,8 @@ int main(void) {
     double data_kbps = 2.0 / (frame_us * 1e-6) / 1e3;   /* 每帧 2 数据 bit */
     printf("  等效数据率  : %.1f kbps (每帧 %.0f us)\n", data_kbps, frame_us);
 
-    /* 功耗估算 (引用 BP-QBC: TX 0.52uW @ 1Mbps) */
-    printf("  TX 功耗估算 : %.2f uW (按 BP-QBC 0.52uW@1Mbps 缩放)\n", 0.52 * data_kbps / 1000.0);
+    /* 功耗：仅文献引用（BP-QBC 0.52uW@1Mbps），无实测电流，不做线性缩放外推 */
+    printf("  功耗        : 无实测（RV1106 无片上功率计，文献 BP-QBC 参考 TX 0.52uW@1Mbps）\n");
 
     printf("\n============================================================\n");
     printf("  结论: 体表 EQS-HBC 信道模型 + 脑电解码在 RV1106 单核上\n");
