@@ -48,6 +48,8 @@ int main(int argc, char **argv) {
     double maxd0 = 0, maxd1 = 0, sumd0 = 0, sumd1 = 0;
 
     printf("=== NPU 全测试集对账（%d 样本）===\n", N);
+    printf("  前 20 样本：NPU logits vs CPU logits（诊断偏差模式）\n");
+    int show = N < 20 ? N : 20;
     for (int i = 0; i < N; i++) {
         float logits[2];
         npu_eegnet_infer(npu, &X[(size_t)i * 4000], logits);
@@ -60,6 +62,12 @@ int main(int argc, char **argv) {
         int pc = cpu_logits[(size_t)i * 2 + 0] > cpu_logits[(size_t)i * 2 + 1] ? 0 : 1;
         if (pn == pc) match++;
         if (pc == y[i]) cpu_ok++;
+        if (i < show) {
+            printf("    #%3d NPU=[%8.4f,%8.4f] CPU=[%8.4f,%8.4f] d=[%6.4f,%6.4f]%s\n",
+                   i, logits[0], logits[1],
+                   cpu_logits[(size_t)i * 2 + 0], cpu_logits[(size_t)i * 2 + 1],
+                   d0, d1, (pn == pc) ? "" : "  ✗");
+        }
     }
 
     printf("  argmax 一致率（NPU vs CPU）: %d/%d (%.2f%%)\n", match, N, 100.0 * match / N);
