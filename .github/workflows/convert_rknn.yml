@@ -49,6 +49,8 @@ jobs:
               fn = getattr(RKNN, m, None)
               print(m, '->', inspect.signature(fn) if fn else 'NOT FOUND')
           "
+          echo '--- 可用版本 ---'
+          pip index versions rknn-toolkit2 2>/dev/null | head -3
 
       - name: Convert ONNX → RKNN (INT8, rv1106) + 模拟器精度验证
         run: python model/convert_rknn.py --verify
