@@ -30,6 +30,8 @@ OUT = PROJECT / "data" / "npu_audit"
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--n", type=int, default=288)
+    parser.add_argument("--activation", type=str, default="elu",
+                        help="激活函数 elu/relu（与训练时的 activation 一致）")
     args = parser.parse_args()
     N = args.n
 
@@ -40,7 +42,7 @@ def main() -> int:
     X = d["X"][:N].astype(np.float32)   # (N,1,8,500)
     y = d["y"][:N].astype(np.int32)
 
-    model = EEGNet(n_channels=8, n_classes=2)
+    model = EEGNet(n_channels=8, n_classes=2, activation=args.activation)
     ckpt = torch.load(MODEL_DIR / "eegnet.pth", map_location="cpu", weights_only=False)
     model.load_state_dict(ckpt["state_dict"])
     model.eval()
