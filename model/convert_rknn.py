@@ -162,8 +162,9 @@ def main() -> int:
     print("配置 RKNN（target=rv1106, INT8, optimization_level=3）...")
     # 注：optimization_level=3 让 rknn 做算子融合（Conv+BN 等），减少量化层数、降低误差累积。
     # 之前的 Pad 拆分问题已用「cat pad + valid conv」根治（见 eegnet.py），不再需要 optimization_level=0。
+    # quantized_dtype：w8a8（默认）/ w8a16（激活16bit，NPU最后一条旋钮，大概率 rv1106 不支持）
     rknn.config(mean_values=[[0]], std_values=[[1]], target_platform="rv1106",
-                optimization_level=3)
+                optimization_level=3, quantized_dtype="w8a16")
 
     # ---- 2. 加载 ONNX ----
     print(f"加载 ONNX：{onnx_path}")
