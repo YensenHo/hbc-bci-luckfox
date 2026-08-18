@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
                 ring[c][head % RING_CAP] = x[c * T + s];
             }
             head++;
-            if (head % RING_CAP == 0 && w > 0) overflows++;  /* 满一圈（本设计 2 窗口容量，不触发）*/
+            /* 注：环形缓冲写满一圈是正常覆盖，不是溢出；真丢帧见下方节流检测 */
         }
 
         /* 2. 从环形缓冲读最新 500 样本窗口 */

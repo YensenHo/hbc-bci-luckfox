@@ -121,7 +121,7 @@ int main(int argc, char **argv) {
         printf(" %6.1f  | %.3f  |  %.2f%%           | %.2f~%.2f%%  |  %.2e\n",
                snr_db, sr, acc_sum / N_SEED, acc_min, acc_max, ber_sum / N_SEED);
     }
-    printf("\n（SNR=20*log10(1/(σ/H))；准确率掉到 50% 即解码失效）\n");
+    printf("\n（SNR=20*log10(1/(sigma/H))；准确率掉到 50%% 即解码失效）\n");
     free(X); free(Y);
     return 0;
 }
