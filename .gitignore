@@ -4,6 +4,7 @@ data/processed/
 data/itis/
 data/fusion_test.bin
 data/*.bin
+data/npu_audit/
 
 # Python
 __pycache__/
